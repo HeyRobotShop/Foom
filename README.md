@@ -1,3 +1,17 @@
+# [Foom](https://foom.live)
+## Free open zoom
+
+The importance of access to communication channels and human connection is impossible to overestimate. With the recent events of the Coronavirus pandemic, the need for easy to use video chat has never been greater. In addition to this, as the world moves ever more toward high-tech labor, labor as digital asset creation, tradtitional enterprises such as writing sessions, painting classes, playing music, and many other lovely human collaborative interactions, have been increasingly difficult to access without pay-for services, or services that sell your personal information to advertisers, or services that obfuscate the routing of the UDP transmission carrying your personal information.
+
+Foom intends to fill this gap, by providing free access to quality video chat for anyone involved with creative and artistic projects. For comercial projects, Foom will be available at-cost to HeyRobot. You are also free to fork the repository and deploy the code yourself.
+
+Foom is maintained by [HeyRobot](https://www.heyrobot.shop), a California Limited Liability Corporation. It is Apache 2.0 licensed software that was forked from the OpenVidu project. We wish to appreciate the tremedous thought and effort and care that was put into this project before we even knew it existed. We'd like to thank all the free software and open source developers that have helped make this project possible. Without them we would not be here. Any advancements made in the Foom project will be happily shared with others working on the OpenVidu or associated projects.
+
+Please contact admin@heyrobot.shop with any questions you may have, or if you'd like to use Foom for free for your project.
+
+-------------------------------------------------------------------------------------------------------------------------------------
+# Original OpenVidu Readme
+
 [![Backers on Open Collective](https://opencollective.com/openvidu/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/openvidu/sponsors/badge.svg)](#sponsors) [![License badge](https://img.shields.io/badge/license-Apache2-orange.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Npm version](https://img.shields.io/npm/v/openvidu-browser?label=npm-version)](https://npmjs.org/package/openvidu-browser)
 [![Npm downloads](https://img.shields.io/npm/dw/openvidu-browser?label=npm2-downloads)](https://npmjs.org/package/openvidu-browser)
