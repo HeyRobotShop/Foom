@@ -1,7 +1,8 @@
 # [Foom](https://foom.live)
-## Free open zoom
 
 <img width="215" alt="Foom" src="https://user-images.githubusercontent.com/9451001/125181864-d8f5fb80-e1bd-11eb-9bd8-8250f71478f2.png">
+
+## The free open zoom
 
 The importance of access to communication channels and human connection is impossible to overestimate. With the recent events of the Coronavirus pandemic, the need for easy to use video chat has never been greater. In addition to this, as the world moves ever more toward high-tech labor, labor as digital asset creation, tradtitional enterprises such as writing sessions, painting classes, playing music, and many other lovely human collaborative interactions, have been increasingly difficult to access without pay-for services, or services that sell your personal information to advertisers, or services that obfuscate the routing of the UDP transmission carrying your personal information.
 
