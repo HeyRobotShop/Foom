@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import java.util.Map;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import io.openvidu.server.cdr.CDREventRecording;
+import io.openvidu.server.cdr.CDREventRecordingStatusChanged;
 import io.openvidu.server.cdr.CDREventSession;
 import io.openvidu.server.core.FinalUser;
 
@@ -32,10 +32,10 @@ public class SessionSummary {
 
 	private CDREventSession eventSessionEnd;
 	private Map<String, FinalUser> users;
-	private Collection<CDREventRecording> recordings;
+	private Collection<CDREventRecordingStatusChanged> recordings;
 
 	public SessionSummary(CDREventSession event, Map<String, FinalUser> users,
-			Collection<CDREventRecording> recordings) {
+			Collection<CDREventRecordingStatusChanged> recordings) {
 		this.eventSessionEnd = event;
 		this.users = users;
 		this.recordings = recordings == null ? new LinkedList<>() : recordings;

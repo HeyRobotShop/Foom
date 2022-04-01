@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@
 package io.openvidu.java.client;
 
 /**
- * Defines error responses from OpenVidu Server
+ * Defines error responses from OpenVidu Server. See error codes at
+ * <a href="/en/stable/reference-docs/REST-API">REST API docs</a>
  */
 public class OpenViduHttpException extends OpenViduException {
 
@@ -31,7 +32,8 @@ public class OpenViduHttpException extends OpenViduException {
 	}
 
 	/**
-	 * @return The unexpected status of the HTTP request
+	 * @return The unexpected status of the HTTP request. See error codes meaning at
+	 *         <a href="/en/stable/reference-docs/REST-API">REST API docs</a>
 	 */
 	public int getStatus() {
 		return this.status;

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,14 @@ public class CDREvent {
 
 	protected String sessionId;
 	protected String uniqueSessionId;
-	protected Long timeStamp;
+	protected Long timestamp;
 	protected CDREventName eventName;
 
-	public CDREvent(CDREventName eventName, String sessionId, String uniqueSessionId, Long timeStamp) {
+	public CDREvent(CDREventName eventName, String sessionId, String uniqueSessionId, Long timestamp) {
 		this.eventName = eventName;
 		this.sessionId = sessionId;
 		this.uniqueSessionId = uniqueSessionId;
-		this.timeStamp = timeStamp;
+		this.timestamp = timestamp;
 	}
 
 	public String getSessionId() {
@@ -42,7 +42,7 @@ public class CDREvent {
 	}
 
 	public Long getTimestamp() {
-		return this.timeStamp;
+		return this.timestamp;
 	}
 
 	public CDREventName getEventName() {
@@ -57,7 +57,7 @@ public class CDREvent {
 		if (uniqueSessionId != null) {
 			json.addProperty("uniqueSessionId", this.uniqueSessionId);
 		}
-		json.addProperty("timestamp", this.timeStamp);
+		json.addProperty("timestamp", this.timestamp);
 		return json;
 	}
 

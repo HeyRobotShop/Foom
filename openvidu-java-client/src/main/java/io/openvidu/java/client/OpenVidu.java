@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -142,14 +142,20 @@ public class OpenVidu {
 	 * @return The created session
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>409</code>: you are trying to
-	 *                                     assign an already-in-use custom sessionId
-	 *                                     to the session. See
-	 *                                     {@link io.openvidu.java.client.SessionProperties#customSessionId()}</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#post-session">REST
+	 *                                     API</a>). This method will never return a
+	 *                                     {@link io.openvidu.java.client.OpenViduHttpException}
+	 *                                     with status 409. If a session with the
+	 *                                     same <code>customSessionId</code> already
+	 *                                     exists in OpenVidu Server, a
+	 *                                     {@link io.openvidu.java.client.Session#fetch()}
+	 *                                     operation is performed in the background
+	 *                                     and the updated Session object is
+	 *                                     returned.
 	 */
 	public Session createSession(SessionProperties properties)
 			throws OpenViduJavaClientException, OpenViduHttpException {
@@ -167,28 +173,12 @@ public class OpenVidu {
 	 * @return The new created session
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no session exists
-	 *                                     for the passed <i>sessionId</i></li>
-	 *                                     <li><code>406</code>: the session has no
-	 *                                     connected participants</li>
-	 *                                     <li><code>422</code>: "resolution"
-	 *                                     parameter exceeds acceptable values (for
-	 *                                     both width and height, min 100px and max
-	 *                                     1999px) or trying to start a recording
-	 *                                     with both "hasAudio" and "hasVideo" to
-	 *                                     false</li>
-	 *                                     <li><code>409</code>: the session is not
-	 *                                     configured for using
-	 *                                     {@link io.openvidu.java.client.MediaMode#ROUTED}
-	 *                                     or it is already being recorded</li>
-	 *                                     <li><code>501</code>: OpenVidu Server
-	 *                                     recording module is disabled
-	 *                                     (<i>OPENVIDU_RECORDING</i> property set
-	 *                                     to <i>false</i>)</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#post-recording-start">REST
+	 *                                     API</a>)
 	 */
 	public Recording startRecording(String sessionId, RecordingProperties properties)
 			throws OpenViduJavaClientException, OpenViduHttpException {
@@ -203,14 +193,10 @@ public class OpenVidu {
 		request.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
 		request.setEntity(params);
 
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e2) {
-			throw new OpenViduJavaClientException(e2.getMessage(), e2.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if ((statusCode == org.apache.http.HttpStatus.SC_OK)) {
 				Recording r = new Recording(httpResponseToJson(response));
@@ -226,8 +212,13 @@ public class OpenVidu {
 			} else {
 				throw new OpenViduHttpException(statusCode);
 			}
+
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
@@ -245,28 +236,12 @@ public class OpenVidu {
 	 *         guarantees
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no session exists
-	 *                                     for the passed <i>sessionId</i></li>
-	 *                                     <li><code>406</code>: the session has no
-	 *                                     connected participants</li>
-	 *                                     <li><code>422</code>: "resolution"
-	 *                                     parameter exceeds acceptable values (for
-	 *                                     both width and height, min 100px and max
-	 *                                     1999px) or trying to start a recording
-	 *                                     with both "hasAudio" and "hasVideo" to
-	 *                                     false</li>
-	 *                                     <li><code>409</code>: the session is not
-	 *                                     configured for using
-	 *                                     {@link io.openvidu.java.client.MediaMode#ROUTED}
-	 *                                     or it is already being recorded</li>
-	 *                                     <li><code>501</code>: OpenVidu Server
-	 *                                     recording module is disabled
-	 *                                     (<i>OPENVIDU_RECORDING</i> property set
-	 *                                     to <i>false</i>)</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#post-recording-start">REST
+	 *                                     API</a>)
 	 */
 	public Recording startRecording(String sessionId, String name)
 			throws OpenViduJavaClientException, OpenViduHttpException {
@@ -286,28 +261,12 @@ public class OpenVidu {
 	 *         guarantees
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no session exists
-	 *                                     for the passed <i>sessionId</i></li>
-	 *                                     <li><code>406</code>: the session has no
-	 *                                     connected participants</li>
-	 *                                     <li><code>422</code>: "resolution"
-	 *                                     parameter exceeds acceptable values (for
-	 *                                     both width and height, min 100px and max
-	 *                                     1999px) or trying to start a recording
-	 *                                     with both "hasAudio" and "hasVideo" to
-	 *                                     false</li>
-	 *                                     <li><code>409</code>: the session is not
-	 *                                     configured for using
-	 *                                     {@link io.openvidu.java.client.MediaMode#ROUTED}
-	 *                                     or it is already being recorded</li>
-	 *                                     <li><code>501</code>: OpenVidu Server
-	 *                                     recording module is disabled
-	 *                                     (<i>OPENVIDU_RECORDING</i> property set
-	 *                                     to <i>false</i>)</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#post-recording-start">REST
+	 *                                     API</a>)
 	 */
 	public Recording startRecording(String sessionId) throws OpenViduJavaClientException, OpenViduHttpException {
 		return this.startRecording(sessionId, "");
@@ -321,27 +280,19 @@ public class OpenVidu {
 	 * @return The stopped recording
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no recording exists
-	 *                                     for the passed <i>recordingId</i></li>
-	 *                                     <li><code>406</code>: recording has
-	 *                                     <i>starting</i> status. Wait until
-	 *                                     <i>started</i> status before stopping the
-	 *                                     recording</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#post-recording-stop">REST
+	 *                                     API</a>)
 	 */
 	public Recording stopRecording(String recordingId) throws OpenViduJavaClientException, OpenViduHttpException {
 		HttpPost request = new HttpPost(this.hostname + API_RECORDINGS_STOP + "/" + recordingId);
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e) {
-			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if ((statusCode == org.apache.http.HttpStatus.SC_OK)) {
 				Recording r = new Recording(httpResponseToJson(response));
@@ -357,8 +308,12 @@ public class OpenVidu {
 			} else {
 				throw new OpenViduHttpException(statusCode);
 			}
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
@@ -368,31 +323,32 @@ public class OpenVidu {
 	 * @param recordingId The id property of the recording you want to retrieve
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no recording exists
-	 *                                     for the passed <i>recordingId</i></li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#get-recording">REST
+	 *                                     API</a>)
 	 */
 	public Recording getRecording(String recordingId) throws OpenViduJavaClientException, OpenViduHttpException {
 		HttpGet request = new HttpGet(this.hostname + API_RECORDINGS + "/" + recordingId);
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e) {
-			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if ((statusCode == org.apache.http.HttpStatus.SC_OK)) {
 				return new Recording(httpResponseToJson(response));
 			} else {
 				throw new OpenViduHttpException(statusCode);
 			}
+
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
@@ -406,14 +362,10 @@ public class OpenVidu {
 	 */
 	public List<Recording> listRecordings() throws OpenViduJavaClientException, OpenViduHttpException {
 		HttpGet request = new HttpGet(this.hostname + API_RECORDINGS);
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e) {
-			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if ((statusCode == org.apache.http.HttpStatus.SC_OK)) {
 				List<Recording> recordings = new ArrayList<>();
@@ -426,8 +378,13 @@ public class OpenVidu {
 			} else {
 				throw new OpenViduHttpException(statusCode);
 			}
+
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
@@ -440,32 +397,30 @@ public class OpenVidu {
 	 * @param recordingId The id property of the recording you want to delete
 	 * 
 	 * @throws OpenViduJavaClientException
-	 * @throws OpenViduHttpException       Value returned from
+	 * @throws OpenViduHttpException       The status code carries a specific
+	 *                                     meaning
 	 *                                     {@link io.openvidu.java.client.OpenViduHttpException#getStatus()}
-	 *                                     <ul>
-	 *                                     <li><code>404</code>: no recording exists
-	 *                                     for the passed <i>recordingId</i></li>
-	 *                                     <li><code>409</code>: the recording has
-	 *                                     <i>started</i> status. Stop it before
-	 *                                     deletion</li>
-	 *                                     </ul>
+	 *                                     (see <a href=
+	 *                                     "/en/stable/reference-docs/REST-API/#delete-recording">REST
+	 *                                     API</a>)
 	 */
 	public void deleteRecording(String recordingId) throws OpenViduJavaClientException, OpenViduHttpException {
 		HttpDelete request = new HttpDelete(this.hostname + API_RECORDINGS + "/" + recordingId);
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e) {
-			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if (!(statusCode == org.apache.http.HttpStatus.SC_NO_CONTENT)) {
 				throw new OpenViduHttpException(statusCode);
 			}
+
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
@@ -487,7 +442,11 @@ public class OpenVidu {
 	 * automatically updates the inner affected connections for that specific
 	 * Session</li>
 	 * <li>Calling {@link io.openvidu.java.client.Session#forceUnpublish(Publisher)}
-	 * also automatically updates the inner affected connections for that specific
+	 * automatically updates the inner affected connections for that specific
+	 * Session</li>
+	 * <li>Calling
+	 * {@link io.openvidu.java.client.Session#updateConnection(String, ConnectionProperties)}
+	 * automatically updates the inner affected connection for that specific
 	 * Session</li>
 	 * <li>Calling {@link io.openvidu.java.client.OpenVidu#startRecording(String)}
 	 * and {@link io.openvidu.java.client.OpenVidu#stopRecording(String)}
@@ -519,14 +478,10 @@ public class OpenVidu {
 	public boolean fetch() throws OpenViduJavaClientException, OpenViduHttpException {
 		HttpGet request = new HttpGet(this.hostname + API_SESSIONS + "?pendingConnections=true");
 
-		HttpResponse response;
+		HttpResponse response = null;
 		try {
 			response = this.httpClient.execute(request);
-		} catch (IOException e) {
-			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
-		}
 
-		try {
 			int statusCode = response.getStatusLine().getStatusCode();
 			if ((statusCode == org.apache.http.HttpStatus.SC_OK)) {
 
@@ -581,14 +536,20 @@ public class OpenVidu {
 			} else {
 				throw new OpenViduHttpException(statusCode);
 			}
+
+		} catch (IOException e) {
+			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());
 		} finally {
-			EntityUtils.consumeQuietly(response.getEntity());
+			if (response != null) {
+				EntityUtils.consumeQuietly(response.getEntity());
+			}
 		}
 	}
 
 	private JsonObject httpResponseToJson(HttpResponse response) throws OpenViduJavaClientException {
 		try {
-			JsonObject json = new Gson().fromJson(EntityUtils.toString(response.getEntity(), "UTF-8"), JsonObject.class);
+			JsonObject json = new Gson().fromJson(EntityUtils.toString(response.getEntity(), "UTF-8"),
+					JsonObject.class);
 			return json;
 		} catch (JsonSyntaxException | ParseException | IOException e) {
 			throw new OpenViduJavaClientException(e.getMessage(), e.getCause());

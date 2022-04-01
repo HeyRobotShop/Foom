@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,17 @@
 
 package io.openvidu.server.core;
 
+import com.google.gson.JsonArray;
+import io.openvidu.java.client.*;
 import org.apache.commons.lang3.RandomStringUtils;
 
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
-import io.openvidu.java.client.ConnectionProperties;
-import io.openvidu.java.client.ConnectionType;
-import io.openvidu.java.client.KurentoOptions;
-import io.openvidu.java.client.OpenViduRole;
 import io.openvidu.server.core.Participant.ParticipantStatus;
 import io.openvidu.server.coturn.TurnCredentials;
+
+import java.util.List;
 
 public class Token {
 
@@ -37,7 +37,7 @@ public class Token {
 	private ConnectionProperties connectionProperties;
 	private TurnCredentials turnCredentials;
 
-	private final String connectionId = IdentifierPrefixes.PARTICIPANT_PUBLIC_ID
+	private String connectionId = IdentifierPrefixes.PARTICIPANT_PUBLIC_ID
 			+ RandomStringUtils.randomAlphabetic(1).toUpperCase() + RandomStringUtils.randomAlphanumeric(9);
 
 	public Token(String token, String sessionId, ConnectionProperties connectionProperties,
@@ -77,7 +77,8 @@ public class Token {
 		this.updateConnectionProperties(connectionProperties.getType(), connectionProperties.getData(), newRecord,
 				connectionProperties.getRole(), connectionProperties.getKurentoOptions(),
 				connectionProperties.getRtspUri(), connectionProperties.adaptativeBitrate(),
-				connectionProperties.onlyPlayWithSubscribers(), connectionProperties.getNetworkCache());
+				connectionProperties.onlyPlayWithSubscribers(), connectionProperties.getNetworkCache(),
+				connectionProperties.getCustomIceServers());
 	}
 
 	public OpenViduRole getRole() {
@@ -88,7 +89,8 @@ public class Token {
 		this.updateConnectionProperties(connectionProperties.getType(), connectionProperties.getData(),
 				connectionProperties.record(), newRole, connectionProperties.getKurentoOptions(),
 				connectionProperties.getRtspUri(), connectionProperties.adaptativeBitrate(),
-				connectionProperties.onlyPlayWithSubscribers(), connectionProperties.getNetworkCache());
+				connectionProperties.onlyPlayWithSubscribers(), connectionProperties.getNetworkCache(),
+				connectionProperties.getCustomIceServers());
 	}
 
 	public KurentoOptions getKurentoOptions() {
@@ -119,6 +121,14 @@ public class Token {
 		return connectionId;
 	}
 
+	public List<IceServerProperties> getCustomIceServers() {
+		return this.connectionProperties.getCustomIceServers();
+	}
+	
+	public void setConnectionId(String connectionId) {
+		this.connectionId = connectionId;
+	}
+
 	public JsonObject toJson() {
 		JsonObject json = new JsonObject();
 		json.addProperty("id", this.getToken());
@@ -132,6 +142,16 @@ public class Token {
 			json.add("kurentoOptions", this.getKurentoOptions().toJson());
 		}
 		return json;
+	}
+
+	public JsonArray getCustomIceServersAsJson() {
+		JsonArray customIceServersJsonList = new JsonArray();
+		if (this.connectionProperties.getCustomIceServers() != null) {
+			this.connectionProperties.getCustomIceServers().forEach((customIceServer) -> {
+				customIceServersJsonList.add(customIceServer.toJson());
+			});
+		}
+		return customIceServersJsonList;
 	}
 
 	public JsonObject toJsonAsParticipant() {
@@ -152,6 +172,7 @@ public class Token {
 		json.addProperty("token", this.getToken());
 		json.add("activeAt", null);
 		json.add("location", null);
+		json.add("ip", null);
 		json.add("platform", null);
 		json.add("clientData", null);
 		json.add("publishers", null);
@@ -173,7 +194,7 @@ public class Token {
 
 	private void updateConnectionProperties(ConnectionType type, String data, Boolean record, OpenViduRole role,
 			KurentoOptions kurentoOptions, String rtspUri, Boolean adaptativeBitrate, Boolean onlyPlayWithSubscribers,
-			Integer networkCache) {
+			Integer networkCache, List<IceServerProperties> iceServerProperties) {
 		ConnectionProperties.Builder builder = new ConnectionProperties.Builder();
 		if (type != null) {
 			builder.type(type);
@@ -201,6 +222,11 @@ public class Token {
 		}
 		if (networkCache != null) {
 			builder.networkCache(networkCache);
+		}
+		if (iceServerProperties != null) {
+			for (IceServerProperties customIceServer: iceServerProperties) {
+				builder.addCustomIceServer(customIceServer);
+			}
 		}
 		this.connectionProperties = builder.build();
 	}

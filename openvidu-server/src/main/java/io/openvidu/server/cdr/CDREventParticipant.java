@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ public class CDREventParticipant extends CDREventEnd {
 		// TODO: remove deprecated "participantId" when possible
 		json.addProperty("participantId", this.participant.getParticipantPublicId());
 		json.addProperty("connectionId", this.participant.getParticipantPublicId());
-		json.addProperty("location",
-				this.participant.getLocation() != null ? this.participant.getLocation().toString() : "unknown");
+		json.addProperty("location", this.participant.getLocation().toString());
+		json.addProperty("ip", this.participant.getLocation().getIp());
 		json.addProperty("platform", this.participant.getPlatform());
 		json.addProperty("clientData", this.participant.getClientMetadata());
 		json.addProperty("serverData", this.participant.getServerMetadata());

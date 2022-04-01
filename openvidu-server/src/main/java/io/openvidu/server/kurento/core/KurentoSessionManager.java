@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,10 +117,6 @@ public class KurentoSessionManager extends SessionManager {
 					// Insecure user directly call joinRoom RPC method, without REST API use
 					SessionProperties.Builder builder = new SessionProperties.Builder().mediaMode(MediaMode.ROUTED)
 							.recordingMode(RecordingMode.ALWAYS);
-					// forcedVideoCodec to NONE if mediasoup
-					if (MediaServer.mediasoup.equals(openviduConfig.getMediaServer())) {
-						builder.forcedVideoCodec(VideoCodec.NONE);
-					}
 					sessionNotActive = new Session(sessionId, builder.build(), openviduConfig, recordingManager);
 				}
 
@@ -231,7 +227,8 @@ public class KurentoSessionManager extends SessionManager {
 						Participant p = sessionidParticipantpublicidParticipant.get(sessionId)
 								.remove(participant.getParticipantPublicId());
 
-						if (p != null && this.openviduConfig.isTurnadminAvailable()) {
+						if (p != null && p.getToken() != null && p.getToken().getTurnCredentials() != null
+								&& this.openviduConfig.isTurnadminAvailable()) {
 							this.coturnCredentialsService.deleteUser(p.getToken().getTurnCredentials().getUsername());
 						}
 
@@ -383,12 +380,17 @@ public class KurentoSessionManager extends SessionManager {
 		KurentoParticipant kParticipant = (KurentoParticipant) participant;
 		KurentoSession kSession = kParticipant.getSession();
 		boolean isTranscodingAllowed = kSession.getSessionProperties().isTranscodingAllowed();
-		VideoCodec forcedVideoCodec = kSession.getSessionProperties().forcedVideoCodec();
+		VideoCodec forcedVideoCodec = kSession.getSessionProperties().forcedVideoCodecResolved();
 
 		final String streamId = kParticipant.generateStreamId(kurentoOptions);
 
 		CDR.log(new WebrtcDebugEvent(participant, streamId, WebrtcDebugEventIssuer.client,
 				WebrtcDebugEventOperation.publish, WebrtcDebugEventType.sdpOffer, kurentoOptions.sdpOffer));
+
+		// Warn about useless usage of the AllowTranscoding feature.
+		if (isTranscodingAllowed && openviduConfig.getMediaServer() != MediaServer.kurento) {
+			log.warn("AllowTranscoding has no effect if the Media Server is not Kurento");
+		}
 
 		// Modify sdp if forced codec is defined
 		if (forcedVideoCodec != VideoCodec.NONE && !participant.isIpcam()) {
@@ -595,7 +597,7 @@ public class KurentoSessionManager extends SessionManager {
 				WebrtcDebugEventType.sdpOffer, sdpOffer));
 
 		boolean isTranscodingAllowed = session.getSessionProperties().isTranscodingAllowed();
-		VideoCodec forcedVideoCodec = session.getSessionProperties().forcedVideoCodec();
+		VideoCodec forcedVideoCodec = session.getSessionProperties().forcedVideoCodecResolved();
 
 		// Modify server's SDPOffer if forced codec is defined
 		if (forcedVideoCodec != VideoCodec.NONE && !participant.isIpcam()) {
@@ -661,7 +663,7 @@ public class KurentoSessionManager extends SessionManager {
 				// Client initiated negotiation. sdpString is the SDP Offer of the client
 
 				boolean isTranscodingAllowed = session.getSessionProperties().isTranscodingAllowed();
-				VideoCodec forcedVideoCodec = session.getSessionProperties().forcedVideoCodec();
+				VideoCodec forcedVideoCodec = session.getSessionProperties().forcedVideoCodecResolved();
 				String sdpOffer = sdpString;
 
 				// Modify sdp if forced codec is defined
@@ -767,7 +769,7 @@ public class KurentoSessionManager extends SessionManager {
 	/**
 	 * Creates a session with the already existing not-active session in the
 	 * indicated KMS, if it doesn't already exist
-	 * 
+	 *
 	 * @throws OpenViduException in case of error while creating the session
 	 */
 	public KurentoSession createSession(Session sessionNotActive, Kms kms) throws OpenViduException {
@@ -1133,9 +1135,10 @@ public class KurentoSessionManager extends SessionManager {
 		// Generate the location for the IpCam
 		GeoLocation location = null;
 		URL url = null;
+		InetAddress ipAddress = null;
 		String protocol = null;
 		try {
-			Pattern pattern = Pattern.compile("^(file|rtsp)://");
+			Pattern pattern = Pattern.compile("^(file|rtsp|rtsps)://");
 			Matcher matcher = pattern.matcher(kMediaOptions.rtspUri);
 			if (matcher.find()) {
 				protocol = matcher.group(0).replaceAll("://$", "");
@@ -1149,13 +1152,14 @@ public class KurentoSessionManager extends SessionManager {
 		}
 
 		try {
-			location = this.geoLocationByIp.getLocationByIp(InetAddress.getByName(url.getHost()));
+			ipAddress = InetAddress.getByName(url.getHost());
+			location = this.geoLocationByIp.getLocationByIp(ipAddress);
 		} catch (IOException e) {
 			e.printStackTrace();
-			location = null;
+			location = new GeoLocation(ipAddress != null ? ipAddress.getHostAddress() : null);
 		} catch (Exception e) {
 			log.warn("Error getting address location: {}", e.getMessage());
-			location = null;
+			location = new GeoLocation(ipAddress != null ? ipAddress.getHostAddress() : null);
 		}
 
 		String rtspConnectionId = kMediaOptions.getTypeOfVideo() + "_" + protocol + "_"
@@ -1204,12 +1208,13 @@ public class KurentoSessionManager extends SessionManager {
 			boolean initByServer, boolean forciblyReconnect) {
 		KurentoParticipant kParticipant = (KurentoParticipant) participant;
 		KurentoSession kSession = kParticipant.getSession();
-		reconnectSubscriber(kSession, kParticipant, streamId, sdpString, transactionId, initByServer, forciblyReconnect);
+		reconnectSubscriber(kSession, kParticipant, streamId, sdpString, transactionId, initByServer,
+				forciblyReconnect);
 	}
 
 	private String mungeSdpOffer(Session kSession, Participant participant, String sdpOffer, boolean isPublisher) {
 		boolean isTranscodingAllowed = kSession.getSessionProperties().isTranscodingAllowed();
-		VideoCodec forcedVideoCodec = kSession.getSessionProperties().forcedVideoCodec();
+		VideoCodec forcedVideoCodec = kSession.getSessionProperties().forcedVideoCodecResolved();
 		// Modify sdp if forced codec is defined
 		if (forcedVideoCodec != VideoCodec.NONE && !participant.isIpcam()) {
 			return sdpMunging.forceCodec(sdpOffer, participant, isPublisher, true, isTranscodingAllowed,
@@ -1376,7 +1381,7 @@ public class KurentoSessionManager extends SessionManager {
 			} catch (Exception e) {
 				log.error("Request to addFilterEventListener to stream {} gone wrong. Error: {}", streamId,
 						e.getMessage());
-				throw new OpenViduException(Code.FILTER_EVENT_LISTENER_NOT_FOUND,
+				throw new OpenViduException(Code.FILTER_EVENT_LISTENER_NOT_FOUND_ERROR_CODE,
 						"Request to addFilterEventListener to stream " + streamId + " gone wrong: " + e.getMessage());
 			}
 		}

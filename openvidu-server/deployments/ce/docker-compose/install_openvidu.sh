@@ -3,14 +3,14 @@
 # Global variables
 OPENVIDU_FOLDER=openvidu
 OPENVIDU_VERSION=master
-OPENVIDU_UPGRADABLE_VERSION="2.16"
+OPENVIDU_UPGRADABLE_VERSION="2.21"
 DOWNLOAD_URL=https://raw.githubusercontent.com/OpenVidu/openvidu/${OPENVIDU_VERSION}
 
 fatal_error() {
      printf "\n     =======¡ERROR!======="
      printf "\n     %s" "$1"
      printf "\n"
-     exit 0
+     exit 1
 }
 
 new_ov_installation() {
@@ -47,6 +47,10 @@ new_ov_installation() {
      printf "\n     => Adding permission to 'openvidu' program..."
      chmod +x "${OPENVIDU_FOLDER}/openvidu" || fatal_error "Error while adding permission to 'openvidu' program"
 
+     # Change recording folder with all permissions
+     printf "\n     => Adding permission to 'recordings' folder..."
+     mkdir -p "${OPENVIDU_FOLDER}/recordings"
+
      # Create own certificated folder
      printf "\n     => Creating folder 'owncert'..."
      mkdir "${OPENVIDU_FOLDER}/owncert" || fatal_error "Error while creating the folder 'owncert'"
@@ -54,6 +58,10 @@ new_ov_installation() {
      # Create vhost nginx folder
      printf "\n     => Creating folder 'custom-nginx-vhosts'..."
      mkdir "${OPENVIDU_FOLDER}/custom-nginx-vhosts" || fatal_error "Error while creating the folder 'custom-nginx-vhosts'"
+
+     # Create vhost nginx folder
+     printf "\n     => Creating folder 'custom-nginx-locations'..."
+     mkdir "${OPENVIDU_FOLDER}/custom-nginx-locations" || fatal_error "Error while creating the folder 'custom-nginx-locations'"
 
      # Ready to use
      printf '\n'
@@ -195,6 +203,11 @@ upgrade_ov() {
           printf '\n          - custom-nginx-vhosts'
      fi
 
+     if [ -d "${OPENVIDU_PREVIOUS_FOLDER}/custom-nginx-locations" ]; then
+          mv "${OPENVIDU_PREVIOUS_FOLDER}/custom-nginx-locations" "${ROLL_BACK_FOLDER}" || fatal_error "Error while moving previous directory 'custom-nginx-locations'"
+          printf '\n          - custom-nginx-locations'
+     fi
+
      # Move tmp files to Openvidu
      printf '\n     => Updating files:'
 
@@ -221,6 +234,10 @@ upgrade_ov() {
      # Add execution permissions
      printf "\n     => Adding permission to 'openvidu' program..."
      chmod +x "${OPENVIDU_PREVIOUS_FOLDER}/openvidu" || fatal_error "Error while adding permission to 'openvidu' program"
+
+     # Change recording folder with all permissions
+     printf "\n     => Adding permission to 'recordings' folder..."
+     mkdir -p "${OPENVIDU_PREVIOUS_FOLDER}/recordings"
 
      # Define old mode: On Premise or Cloud Formation
      OLD_MODE=$(grep -E "Installation Mode:.*$" "${ROLL_BACK_FOLDER}/docker-compose.yml" | awk '{ print $4,$5 }')

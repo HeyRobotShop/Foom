@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@ import { Session } from '../../OpenVidu/Session';
 
 
 /**
- * Defines the following events:
- * - `connectionCreated`: dispatched by [[Session]] after a new user has connected to the session
- * - `connectionDestroyed`: dispatched by [[Session]] after a new user has left the session
+ * Triggered by:
+ * - [[connectionCreated]]
+ * - [[connectionDestroyed]]
  */
 export class ConnectionEvent extends Event {
 

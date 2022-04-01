@@ -4,13 +4,16 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileReader;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,10 +45,11 @@ import io.openvidu.java.client.OpenViduHttpException;
 import io.openvidu.java.client.OpenViduRole;
 import io.openvidu.java.client.Recording;
 import io.openvidu.java.client.Session;
+import io.openvidu.test.browsers.utils.BrowserNames;
 import io.openvidu.test.browsers.utils.CustomHttpClient;
 import io.openvidu.test.browsers.utils.Unzipper;
 
-public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
+public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestappE2eTest {
 
 	protected volatile static boolean isNetworkQualityTest;
 
@@ -53,7 +57,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 	protected static void setupAll() {
 		checkFfmpegInstallation();
 		loadEnvironmentVariables();
-		setupBrowserDrivers();
+		prepareBrowserDrivers(new HashSet<>(Arrays.asList(BrowserNames.CHROME)));
 		cleanFoldersAndSetUpOpenViduJavaClient();
 	}
 
@@ -85,7 +89,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 	void individualDynamicRecordTest() throws Exception {
 		isRecordingTest = true;
 
-		setupBrowser("chrome");
+		OpenViduTestappUser user = setupBrowserAndConnectToOpenViduTestapp("chrome");
 
 		log.info("Individual dynamic record");
 
@@ -109,13 +113,12 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		user.getDriver().findElements(By.className("join-btn")).forEach(el -> el.sendKeys(Keys.ENTER));
 		user.getEventManager().waitUntilEventReaches("streamPlaying", 9);
 
-		// Start the recording for one of the not recorded users
+		// Get connectionId and streamId for the user configured to be recorded
 		JsonObject sessionInfo = restClient.rest(HttpMethod.GET, "/openvidu/api/sessions/" + sessionName,
 				HttpStatus.SC_OK);
 		JsonArray connections = sessionInfo.get("connections").getAsJsonObject().get("content").getAsJsonArray();
 		String connectionId1 = null;
 		String streamId1 = null;
-		// Get connectionId and streamId
 		for (JsonElement connection : connections) {
 			if (connection.getAsJsonObject().get("record").getAsBoolean()) {
 				connectionId1 = connection.getAsJsonObject().get("connectionId").getAsString();
@@ -125,17 +128,18 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 			}
 		}
 
+		// Start the recording of the sessions
 		restClient.rest(HttpMethod.POST, "/openvidu/api/recordings/start",
 				"{'session':'" + sessionName + "','outputMode':'INDIVIDUAL'}", HttpStatus.SC_OK);
 		user.getEventManager().waitUntilEventReaches("recordingStarted", 3);
 		Thread.sleep(1000);
 
-		// Start the recording for one of the not recorded users
+		// Get connectionId and streamId for one of the users configured to NOT be
+		// recorded
 		sessionInfo = restClient.rest(HttpMethod.GET, "/openvidu/api/sessions/" + sessionName, HttpStatus.SC_OK);
 		connections = sessionInfo.get("connections").getAsJsonObject().get("content").getAsJsonArray();
 		String connectionId2 = null;
 		String streamId2 = null;
-		// Get connectionId and streamId
 		for (JsonElement connection : connections) {
 			if (!connection.getAsJsonObject().get("record").getAsBoolean()) {
 				connectionId2 = connection.getAsJsonObject().get("connectionId").getAsString();
@@ -145,7 +149,8 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 			}
 		}
 
-		// Generate 3 total recordings of 1 second length for this same stream
+		// Generate 3 total recordings of 1 second length for the stream of the user
+		// configured to NOT be recorded
 		restClient.rest(HttpMethod.PATCH, "/openvidu/api/sessions/" + sessionName + "/connection/" + connectionId2,
 				"{'record':true}", HttpStatus.SC_OK);
 		Thread.sleep(1000);
@@ -163,7 +168,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		restClient.rest(HttpMethod.POST, "/openvidu/api/recordings/stop/" + sessionName, HttpStatus.SC_OK);
 		user.getEventManager().waitUntilEventReaches("recordingStopped", 3);
 
-		gracefullyLeaveParticipants(3);
+		gracefullyLeaveParticipants(user, 3);
 
 		String recPath = "/opt/openvidu/recordings/" + sessionName + "/";
 		Recording recording = new OpenVidu(OpenViduTestAppE2eTest.OPENVIDU_URL, OpenViduTestAppE2eTest.OPENVIDU_SECRET)
@@ -178,8 +183,11 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		JsonArray syncArray = jsonMetadata.get("files").getAsJsonArray();
 		int count1 = 0;
 		int count2 = 0;
-		List<String> names = Stream.of(streamId2 + ".webm", streamId2 + "-1.webm", streamId2 + "-2.webm")
-				.collect(Collectors.toList());
+
+		Set<String> regexNames = Stream.of("^" + streamId2 + "\\.(webm|mkv|mp4)$",
+				"^" + streamId2 + "-1\\.(webm|mkv|mp4)$", "^" + streamId2 + "-2\\.(webm|mkv|mp4)$")
+				.collect(Collectors.toSet());
+
 		for (JsonElement fileJson : syncArray) {
 			JsonObject file = fileJson.getAsJsonObject();
 			String fileStreamId = file.get("streamId").getAsString();
@@ -199,8 +207,20 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 				Assert.assertTrue(
 						"Wrong recording duration of individual file. Difference: " + Math.abs(msDuration - 1000),
 						Math.abs(msDuration - 1000) < 150);
-				Assert.assertTrue("File name not found among " + names.toString(),
-						names.remove(file.get("name").getAsString()));
+
+				String fileName = file.get("name").getAsString();
+
+				boolean found = false;
+				Iterator<String> regexNamesIterator = regexNames.iterator();
+				while (regexNamesIterator.hasNext()) {
+					if (Pattern.compile(regexNamesIterator.next()).matcher(fileName).matches()) {
+						found = true;
+						regexNamesIterator.remove();
+						break;
+					}
+				}
+
+				Assert.assertTrue("File name " + fileName + " not found among regex " + regexNames.toString(), found);
 				count2++;
 			} else {
 				Assert.fail("Metadata file element does not belong to a known stream (" + fileStreamId + ")");
@@ -208,7 +228,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		}
 		Assert.assertEquals("Wrong number of recording files for stream " + streamId1, 1, count1);
 		Assert.assertEquals("Wrong number of recording files for stream " + streamId2, 3, count2);
-		Assert.assertTrue("Some expected file name didn't existed: " + names.toString(), names.isEmpty());
+		Assert.assertTrue("Some expected file name didn't existed: " + regexNames.toString(), regexNames.isEmpty());
 	}
 
 	@Test
@@ -290,7 +310,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		Assert.assertFalse("Wrong record Connection property", connection.record());
 		Assert.assertEquals("Wrong data Connection property", "MY_SERVER_PRO_DATA", connection.getServerData());
 
-		setupBrowser("chrome");
+		OpenViduTestappUser user = setupBrowserAndConnectToOpenViduTestapp("chrome");
 
 		user.getDriver().findElement(By.id("add-user-btn")).click();
 		user.getDriver().findElement(By.id("session-settings-btn-0")).click();
@@ -315,6 +335,8 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 			alert.accept();
 		} catch (Exception e) {
 			Assert.fail("Alert exception");
+		} finally {
+			user.getEventManager().resetEventThread(false);
 		}
 		Thread.sleep(500);
 
@@ -354,7 +376,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 								+ "','role':'MODERATOR','record':false,'token':'" + token
 								+ "','sessionId':'CUSTOM_SESSION_ID','createdAt':" + createdAt + ",'activeAt':"
 								+ activeAt + ",'serverData':'MY_SERVER_PRO_DATA'}",
-						new String[] { "location", "platform", "clientData" }));
+						new String[] { "location", "ip", "platform", "clientData" }));
 
 		user.getEventManager().waitUntilEventReaches("connectionPropertyChanged", 1);
 
@@ -366,7 +388,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 								+ "','role':'MODERATOR','record':true,'token':'" + token
 								+ "','sessionId':'CUSTOM_SESSION_ID','createdAt':" + createdAt + ",'activeAt':"
 								+ activeAt + ",'serverData':'MY_SERVER_PRO_DATA'}",
-						new String[] { "location", "platform", "clientData" }));
+						new String[] { "location", "ip", "platform", "clientData" }));
 
 		user.getEventManager().waitUntilEventReaches("connectionPropertyChanged", 2);
 
@@ -377,7 +399,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 								+ "','role':'SUBSCRIBER','record':true,'token':'" + token
 								+ "','sessionId':'CUSTOM_SESSION_ID','createdAt':" + createdAt + ",'activeAt':"
 								+ activeAt + ",'serverData':'MY_SERVER_PRO_DATA'}",
-						new String[] { "location", "platform", "clientData" }));
+						new String[] { "location", "ip", "platform", "clientData" }));
 
 		user.getEventManager().waitUntilEventReaches("connectionPropertyChanged", 3);
 
@@ -388,7 +410,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 								+ "','role':'PUBLISHER','record':true,'token':'" + token
 								+ "','sessionId':'CUSTOM_SESSION_ID','createdAt':" + createdAt + ",'activeAt':"
 								+ activeAt + ",'serverData':'MY_SERVER_PRO_DATA'}",
-						new String[] { "location", "platform", "clientData" }));
+						new String[] { "location", "ip", "platform", "clientData" }));
 
 		user.getEventManager().waitUntilEventReaches("connectionPropertyChanged", 4);
 
@@ -451,7 +473,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		Assert.assertEquals("Wrong data in Connection object", "MY_SERVER_PRO_DATA", connection.getServerData());
 		Assert.assertEquals("Wrong status in Connection object", "active", connection.getStatus());
 
-		user.getEventManager().resetEventThread();
+		user.getEventManager().resetEventThread(true);
 
 		user.getWaiter().until(ExpectedConditions.elementToBeClickable(By.cssSelector(".republish-error-btn")));
 		user.getDriver().findElement(By.cssSelector(".republish-error-btn")).click();
@@ -474,12 +496,12 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 
 		/** GET /openvidu/api/config **/
 		restClient.rest(HttpMethod.GET, "/openvidu/api/config", null, HttpStatus.SC_OK, true, false, true,
-				"{'VERSION':'STR','DOMAIN_OR_PUBLIC_IP':'STR','HTTPS_PORT':0,'OPENVIDU_PUBLICURL':'STR','OPENVIDU_CDR':false,'OPENVIDU_STREAMS_VIDEO_MAX_RECV_BANDWIDTH':0,'OPENVIDU_STREAMS_VIDEO_MIN_RECV_BANDWIDTH':0,"
-						+ "'OPENVIDU_STREAMS_VIDEO_MAX_SEND_BANDWIDTH':0,'OPENVIDU_STREAMS_VIDEO_MIN_SEND_BANDWIDTH':0,'OPENVIDU_SESSIONS_GARBAGE_INTERVAL':0,'OPENVIDU_SESSIONS_GARBAGE_THRESHOLD':0,"
+				"{'VERSION':'STR','DOMAIN_OR_PUBLIC_IP':'STR','HTTPS_PORT':0,'OPENVIDU_EDITION':'STR','OPENVIDU_PUBLICURL':'STR','OPENVIDU_CDR':false,'OPENVIDU_STREAMS_VIDEO_MAX_RECV_BANDWIDTH':0,'OPENVIDU_STREAMS_VIDEO_MIN_RECV_BANDWIDTH':0,"
+						+ "'OPENVIDU_STREAMS_VIDEO_MAX_SEND_BANDWIDTH':0,'OPENVIDU_STREAMS_VIDEO_MIN_SEND_BANDWIDTH':0,'OPENVIDU_WEBRTC_SIMULCAST':false,'OPENVIDU_SESSIONS_GARBAGE_INTERVAL':0,'OPENVIDU_SESSIONS_GARBAGE_THRESHOLD':0,"
 						+ "'OPENVIDU_RECORDING':false,'OPENVIDU_RECORDING_VERSION':'STR','OPENVIDU_RECORDING_PATH':'STR','OPENVIDU_RECORDING_PUBLIC_ACCESS':false,'OPENVIDU_RECORDING_NOTIFICATION':'STR',"
 						+ "'OPENVIDU_RECORDING_CUSTOM_LAYOUT':'STR','OPENVIDU_RECORDING_AUTOSTOP_TIMEOUT':0,'OPENVIDU_WEBHOOK':false,'OPENVIDU_SERVER_DEPENDENCY_VERSION':'STR','KMS_URIS':[],"
 						+ "'OPENVIDU_PRO_STATS_SESSION_INTERVAL':0,'OPENVIDU_PRO_STATS_SERVER_INTERVAL':0,'OPENVIDU_PRO_STATS_MONITORING_INTERVAL':0,'OPENVIDU_PRO_STATS_WEBRTC_INTERVAL':0,'OPENVIDU_PRO_CLUSTER_ID':'STR',"
-						+ "'OPENVIDU_PRO_CLUSTER_ENVIRONMENT':'STR','OPENVIDU_PRO_CLUSTER_MEDIA_NODES':0,'OPENVIDU_PRO_CLUSTER_PATH':'STR','OPENVIDU_PRO_CLUSTER_AUTOSCALING':false,"
+						+ "'OPENVIDU_PRO_CLUSTER_ENVIRONMENT':'STR','OPENVIDU_PRO_CLUSTER_MEDIA_NODES':0,'OPENVIDU_PRO_CLUSTER_PATH':'STR','OPENVIDU_PRO_CLUSTER_RECONNECTION_TIMEOUT':0,'OPENVIDU_PRO_CLUSTER_AUTOSCALING':false,"
 						+ "'OPENVIDU_PRO_ELASTICSEARCH':true,'OPENVIDU_PRO_ELASTICSEARCH_VERSION':'STR','OPENVIDU_PRO_ELASTICSEARCH_HOST':'STR','OPENVIDU_PRO_KIBANA':true,'OPENVIDU_PRO_KIBANA_VERSION':'STR',"
 						+ "'OPENVIDU_PRO_KIBANA_HOST':'STR','OPENVIDU_PRO_RECORDING_STORAGE':'STR','OPENVIDU_PRO_NETWORK_QUALITY':false,'OPENVIDU_STREAMS_ALLOW_TRANSCODING':false,'OPENVIDU_STREAMS_FORCED_VIDEO_CODEC':'STR'}");
 
@@ -550,7 +572,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		restClient.rest(HttpMethod.POST, "/openvidu/api/restart", body, 200);
 		waitUntilOpenViduRestarted(30);
 
-		setupBrowser("chrome");
+		OpenViduTestappUser user = setupBrowserAndConnectToOpenViduTestapp("chrome");
 		user.getDriver().findElement(By.id("add-user-btn")).click();
 		user.getDriver().findElement(By.className("join-btn")).click();
 
@@ -585,7 +607,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 		user.getEventManager().waitUntilEventReaches("networkQualityLevelChanged", 2);
 
 		if (!latch1.await(30000, TimeUnit.MILLISECONDS)) {
-			gracefullyLeaveParticipants(1);
+			gracefullyLeaveParticipants(user, 1);
 			fail();
 			return;
 		}
@@ -605,7 +627,7 @@ public class OpenViduProTestAppE2eTest extends AbstractOpenViduTestAppE2eTest {
 				.findElement(By.cssSelector("#openvidu-instance-1 .mat-expansion-panel:last-child .event-content"))
 				.getAttribute("textContent").contains(connectionId));
 
-		gracefullyLeaveParticipants(1);
+		gracefullyLeaveParticipants(user, 1);
 	}
 
 	private void waitUntilOpenViduRestarted(int maxSecondsWait) throws Exception {

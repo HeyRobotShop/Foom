@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 package io.openvidu.server.kurento.core;
 
+import io.openvidu.server.config.OpenviduConfig;
 import org.kurento.client.BaseRtpEndpoint;
 import org.kurento.client.Endpoint;
 import org.kurento.client.PlayerEndpoint;
@@ -40,6 +41,9 @@ public class KurentoParticipantEndpointConfig {
 
 	@Autowired
 	protected CallDetailRecord CDR;
+
+	@Autowired
+	protected OpenviduConfig openviduConfig;
 
 	public void addEndpointListeners(MediaEndpoint endpoint, String typeOfEndpoint) {
 

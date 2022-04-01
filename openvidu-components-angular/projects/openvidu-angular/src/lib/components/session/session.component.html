@@ -1,0 +1,25 @@
+<div id="session-container">
+	<mat-sidenav-container class="sidenav-container">
+		<mat-sidenav
+			#sidenav
+			mode="{{ sidenavMode }}"
+			position="end"
+			class="sidenav-menu"
+			fixedInViewport="true"
+			fixedTopGap="0"
+			fixedBottomGap="0"
+		>
+			<ng-container *ngTemplateOutlet="panelTemplate"></ng-container>
+		</mat-sidenav>
+
+		<mat-sidenav-content class="sidenav-main">
+			<div id="layout-container">
+				<ng-container *ngTemplateOutlet="layoutTemplate"></ng-container>
+			</div>
+		</mat-sidenav-content>
+	</mat-sidenav-container>
+
+	<div id="footer-container">
+		<ng-container *ngTemplateOutlet="toolbarTemplate"></ng-container>
+	</div>
+</div>

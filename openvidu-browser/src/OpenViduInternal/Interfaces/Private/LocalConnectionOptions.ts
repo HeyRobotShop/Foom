@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
  */
 
 import { RemoteConnectionOptions } from './RemoteConnectionOptions';
+import { IceServerProperties } from './IceServerProperties';
 
 export interface LocalConnectionOptions {
     id: string;
@@ -28,8 +29,12 @@ export interface LocalConnectionOptions {
     role: string;
     record: boolean;
     coturnIp: string;
+    coturnPort: number;
     turnUsername: string;
     turnCredential: string;
     version: string;
     mediaServer: string;
+    videoSimulcast: boolean;
+    life: number;
+    customIceServers?: IceServerProperties[]
 }

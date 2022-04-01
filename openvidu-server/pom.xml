@@ -12,7 +12,7 @@
 	<packaging>jar</packaging>
 
 	<name>OpenVidu Server</name>
-	<version>2.18.0</version>
+	<version>2.21.0</version>
 	<description>OpenVidu Server</description>
 	<url>https://openvidu.io</url>
 
@@ -268,6 +268,11 @@
 			<version>${version.spring-boot}</version>
 		</dependency>
 		<dependency>
+			<groupId>commons-validator</groupId>
+			<artifactId>commons-validator</artifactId>
+			<version>${version.commons-validator}</version>
+		</dependency>
+		<dependency>
 			<groupId>com.github.docker-java</groupId>
 			<artifactId>docker-java</artifactId>
 			<version>${version.dockerjava}</version>
@@ -327,6 +332,11 @@
 			<artifactId>openvidu-java-client</artifactId>
 			<version>${version.openvidu.java.client}</version>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.maven</groupId>
+			<artifactId>maven-artifact</artifactId>
+			<version>${version.maven.artifact}</version>
+		</dependency>
 
 		<!-- Test dependencies -->
 
@@ -358,6 +368,24 @@
 			<groupId>org.hamcrest</groupId>
 			<artifactId>hamcrest-library</artifactId>
 			<version>${version.hamcrest}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.openvidu</groupId>
+			<artifactId>openvidu-test-browsers</artifactId>
+			<version>${version.openvidu.test.browsers}</version>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>net.bytebuddy</groupId>
+					<artifactId>byte-buddy</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.powermock</groupId>
+			<artifactId>powermock-api-mockito2</artifactId>
+			<version>${version.powermock}</version>
 			<scope>test</scope>
 		</dependency>
 

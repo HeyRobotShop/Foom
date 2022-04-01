@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,15 @@
 
 package io.openvidu.test.browsers.utils.webhook;
 
+import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -45,31 +48,100 @@ public class CustomWebhook {
 	private static ConfigurableApplicationContext context;
 
 	public static CountDownLatch initLatch;
-	static ConcurrentMap<String, BlockingQueue<JsonObject>> events = new ConcurrentHashMap<>();
+	public static int accumulatedNumberOfEvents = 0;
+	public final static ConcurrentMap<String, AtomicInteger> accumulatedEvents = new ConcurrentHashMap<>();
+	static final ConcurrentMap<String, BlockingQueue<JsonObject>> events = new ConcurrentHashMap<>();
+	static final BlockingQueue<JsonObject> eventsInOrder = new LinkedBlockingDeque<>();
 
 	public static void main(String[] args, CountDownLatch initLatch) {
 		CustomWebhook.initLatch = initLatch;
-		CustomWebhook.events.clear();
+		CustomWebhook.clean();
 		CustomWebhook.context = new SpringApplicationBuilder(CustomWebhook.class)
 				.properties("spring.config.location:classpath:aplication-pro-webhook.properties").build().run(args);
 	}
 
 	public static void shutDown() {
-		CustomWebhook.events.clear();
+		CustomWebhook.clean();
 		CustomWebhook.context.close();
 	}
 
 	public static void clean() {
+		CustomWebhook.accumulatedNumberOfEvents = 0;
+		CustomWebhook.accumulatedEvents.clear();
+		CustomWebhook.eventsInOrder.clear();
 		CustomWebhook.events.clear();
 	}
 
+	public static void cleanEventsInOrder() {
+		CustomWebhook.eventsInOrder.clear();
+	}
+
 	public synchronized static JsonObject waitForEvent(String eventName, int maxSecondsWait) throws Exception {
+		return CustomWebhook.waitForEvent(eventName, maxSecondsWait, TimeUnit.SECONDS);
+	}
+
+	public synchronized static JsonObject waitForEvent(String eventName, int maxWait, TimeUnit timeUnit)
+			throws Exception {
 		if (events.get(eventName) == null) {
 			events.put(eventName, new LinkedBlockingDeque<>());
 		}
-		JsonObject event = CustomWebhook.events.get(eventName).poll(maxSecondsWait, TimeUnit.SECONDS);
+		JsonObject event = CustomWebhook.events.get(eventName).poll(maxWait, timeUnit);
 		if (event == null) {
-			throw new Exception("Timeout waiting for Webhook " + eventName);
+			throw new TimeoutException("Timeout waiting for Webhook " + eventName);
+		} else {
+			return event;
+		}
+	}
+
+	public synchronized static JsonObject waitForNextEventToBeOfType(String eventName, int maxSecondsWait)
+			throws Exception {
+		JsonObject event = eventsInOrder.poll(maxSecondsWait, TimeUnit.SECONDS);
+		if (event == null) {
+			throw new TimeoutException("Timeout waiting for Webhook " + eventName);
+		} else {
+			String ev = event.get("event").getAsString();
+			if (!eventName.equals(ev)) {
+				throw new Exception("Wrong event type receieved. Excpeceted " + eventName + " but got " + ev + ": "
+						+ event.toString());
+			} else {
+				// Remove the very same event from the map of events
+				long maxWait = System.currentTimeMillis();
+				do {
+					Thread.sleep(25);
+				} while (!CustomWebhook.events.containsKey(eventName)
+						|| (System.currentTimeMillis() - maxWait) < (maxSecondsWait * 1000));
+				if (!CustomWebhook.events.get(eventName).contains(event)) {
+					throw new Exception("Lack of event " + eventName);
+				} else {
+					JsonObject sameEvent = null;
+					Iterator<JsonObject> it = CustomWebhook.events.get(eventName).iterator();
+					boolean found = false;
+					while (!found && it.hasNext()) {
+						JsonObject json = it.next();
+						if (json.equals(event)) {
+							found = true;
+							sameEvent = json;
+							it.remove();
+						}
+					}
+					if (!event.equals(sameEvent)) {
+						throw new Exception(
+								"Events were different! " + event.toString() + " | " + sameEvent.toString());
+					}
+					return event;
+				}
+			}
+		}
+	}
+
+	public synchronized static JsonObject waitToNotReceiveEvent(String eventName, int secondsForNotReceiving)
+			throws Exception {
+		if (events.get(eventName) == null) {
+			events.put(eventName, new LinkedBlockingDeque<>());
+		}
+		JsonObject event = CustomWebhook.events.get(eventName).poll(secondsForNotReceiving, TimeUnit.SECONDS);
+		if (event != null) {
+			throw new Exception("WebHook received event " + eventName + " and it wasn't expected: " + event.toString());
 		} else {
 			return event;
 		}
@@ -81,7 +153,12 @@ public class CustomWebhook {
 		public void webhook(@RequestBody String eventString) {
 			JsonObject event = JsonParser.parseString(eventString).getAsJsonObject();
 			System.out.println("Webhook event: " + event.toString());
+			accumulatedNumberOfEvents++;
+			eventsInOrder.add(event);
 			final String eventName = event.get("event").getAsString();
+			if (accumulatedEvents.putIfAbsent(eventName, new AtomicInteger(1)) != null) {
+				accumulatedEvents.get(eventName).incrementAndGet();
+			}
 			final BlockingQueue<JsonObject> queue = new LinkedBlockingDeque<>();
 			if (!CustomWebhook.events.computeIfAbsent(eventName, e -> {
 				queue.add(event);

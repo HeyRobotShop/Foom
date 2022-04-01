@@ -38,8 +38,8 @@ public class OperaUser extends BrowserUser {
 			this.driver = new OperaDriver(options);
 		}
 
-		this.driver.manage().timeouts().setScriptTimeout(this.timeOfWaitInSeconds, TimeUnit.SECONDS);
-		this.configureDriver();
+		this.driver.manage().timeouts().setScriptTimeout(timeOfWaitInSeconds, TimeUnit.SECONDS);
+		this.configureDriver(new org.openqa.selenium.Dimension(1920, 1080));
 	}
 
 }

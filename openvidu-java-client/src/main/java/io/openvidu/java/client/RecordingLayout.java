@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,9 +44,10 @@ public enum RecordingLayout {
 	HORIZONTAL_PRESENTATION,
 
 	/**
-	 * Use your own custom recording layout. See <a href=
-	 * "https://docs.openvidu.io/en/stable/advanced-features/recording#custom-recording-layouts"
-	 * target="_blank">Custom recording layouts</a> to learn more
+	 * Use your own custom recording layout. See
+	 * <a href="https://docs.openvidu.io/en/stable/advanced-features/recording#custom-recording-layouts">
+	 *   Custom recording layouts
+	 * </a> to learn more.
 	 */
 	CUSTOM
 }

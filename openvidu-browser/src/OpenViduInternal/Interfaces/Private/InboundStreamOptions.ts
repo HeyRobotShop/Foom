@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 import { Connection } from '../../../OpenVidu/Connection';
 import { Filter } from '../../../OpenVidu/Filter';
+import { TypeOfVideo } from '../../Enums/TypeOfVideo';
 
 export interface InboundStreamOptions {
     id: string;
@@ -26,7 +27,7 @@ export interface InboundStreamOptions {
     hasVideo: boolean;
     audioActive: boolean;
     videoActive: boolean;
-    typeOfVideo: string;
+    typeOfVideo: TypeOfVideo;
     frameRate: number;
     videoDimensions: { width: number, height: number };
     filter?: Filter;

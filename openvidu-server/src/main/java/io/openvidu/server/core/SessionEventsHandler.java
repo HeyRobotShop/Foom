@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ import com.google.gson.JsonObject;
 import io.openvidu.client.OpenViduException;
 import io.openvidu.client.OpenViduException.Code;
 import io.openvidu.client.internal.ProtocolElements;
+import io.openvidu.java.client.IceServerProperties;
 import io.openvidu.java.client.OpenViduRole;
-import io.openvidu.server.cdr.CDREventNodeCrashed;
 import io.openvidu.server.cdr.CallDetailRecord;
 import io.openvidu.server.config.OpenviduBuildInfo;
 import io.openvidu.server.config.OpenviduConfig;
@@ -70,8 +70,8 @@ public class SessionEventsHandler {
 		CDR.recordSessionCreated(session);
 	}
 
-	public void onSessionClosed(String sessionId, EndReason reason) {
-		CDR.recordSessionDestroyed(sessionId, reason);
+	public void onSessionClosed(Session session, EndReason reason) {
+		CDR.recordSessionDestroyed(session, reason);
 	}
 
 	public void onParticipantJoined(Participant participant, String sessionId, Set<Participant> existingParticipants,
@@ -165,6 +165,19 @@ public class SessionEventsHandler {
 		result.addProperty(ProtocolElements.PARTICIPANTJOINED_MEDIASERVER_PARAM,
 				this.openviduConfig.getMediaServer().name());
 
+		switch (this.openviduConfig.getMediaServer()) {
+		case mediasoup:
+			// mediasoup supports simulcast
+			result.addProperty(ProtocolElements.PARTICIPANTJOINED_SIMULCAST_PARAM,
+					this.openviduConfig.isWebrtcSimulcast());
+			break;
+		case kurento:
+		default:
+			// Kurento does not support simulcast
+			result.addProperty(ProtocolElements.PARTICIPANTJOINED_SIMULCAST_PARAM, false);
+			break;
+		}
+
 		if (participant.getToken() != null) {
 			result.addProperty(ProtocolElements.PARTICIPANTJOINED_RECORD_PARAM, participant.getToken().record());
 			if (participant.getToken().getRole() != null) {
@@ -172,6 +185,12 @@ public class SessionEventsHandler {
 						participant.getToken().getRole().name());
 			}
 			result.addProperty(ProtocolElements.PARTICIPANTJOINED_COTURNIP_PARAM, openviduConfig.getCoturnIp());
+			result.addProperty(ProtocolElements.PARTICIPANTJOINED_COTURNPORT_PARAM, openviduConfig.getCoturnPort());
+			List<IceServerProperties> customIceServers = participant.getToken().getCustomIceServers();
+			if (customIceServers != null && !customIceServers.isEmpty()) {
+				result.add(ProtocolElements.PARTICIPANTJOINED_CUSTOM_ICE_SERVERS,
+						participant.getToken().getCustomIceServersAsJson());
+			}
 			if (participant.getToken().getTurnCredentials() != null) {
 				result.addProperty(ProtocolElements.PARTICIPANTJOINED_TURNUSERNAME_PARAM,
 						participant.getToken().getTurnCredentials().getUsername());
@@ -649,11 +668,11 @@ public class SessionEventsHandler {
 	 * This handler must be called before cleaning any sessions or recordings hosted
 	 * by the crashed Media Node
 	 */
-	public void onMediaNodeCrashed(Kms kms, long timeOfKurentoDisconnection, List<String> sessionIds,
+	public void onMediaNodeCrashed(Kms kms, String environmentId, long timeOfDisconnection, List<String> sessionIds,
 			List<String> recordingIds) {
 	}
 
-	public void onMasterNodeCrashed(CDREventNodeCrashed event) {
+	public void onMediaNodeRecovered(Kms kms, String environmentId, long timeOfConnection) {
 	}
 
 	public void storeRecordingToSendClientEvent(Recording recording) {

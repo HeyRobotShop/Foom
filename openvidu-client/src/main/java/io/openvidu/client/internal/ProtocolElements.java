@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ public class ProtocolElements {
 	public static final String JOINROOM_METADATA_PARAM = "metadata";
 	public static final String JOINROOM_SECRET_PARAM = "secret";
 	public static final String JOINROOM_PLATFORM_PARAM = "platform";
+	public static final String JOINROOM_SDKVERSION_PARAM = "sdkVersion";
 	public static final String JOINROOM_RECORDER_PARAM = "recorder";
 
 	public static final String JOINROOM_PEERID_PARAM = "id";
@@ -135,9 +136,7 @@ public class ProtocolElements {
 	public static final String RECONNECTSTREAM_STREAM_PARAM = "stream";
 	public static final String RECONNECTSTREAM_SDPSTRING_PARAM = "sdpString";
 	public static final String RECONNECTSTREAM_FORCIBLYRECONNECT_PARAM = "forciblyReconnect";
-	// TODO: REMOVE ON 2.18.0
 	public static final String RECONNECTSTREAM_SDPOFFER_PARAM = "sdpOffer";
-	// ENDTODO
 
 	public static final String VIDEODATA_METHOD = "videoData";
 
@@ -159,9 +158,12 @@ public class ProtocolElements {
 	public static final String PARTICIPANTJOINED_SESSION_PARAM = "session";
 	public static final String PARTICIPANTJOINED_VERSION_PARAM = "version";
 	public static final String PARTICIPANTJOINED_MEDIASERVER_PARAM = "mediaServer";
+	public static final String PARTICIPANTJOINED_SIMULCAST_PARAM = "videoSimulcast";
 	public static final String PARTICIPANTJOINED_RECORD_PARAM = "record";
 	public static final String PARTICIPANTJOINED_ROLE_PARAM = "role";
 	public static final String PARTICIPANTJOINED_COTURNIP_PARAM = "coturnIp";
+	public static final String PARTICIPANTJOINED_COTURNPORT_PARAM = "coturnPort";
+	public static final String PARTICIPANTJOINED_CUSTOM_ICE_SERVERS = "customIceServers";
 	public static final String PARTICIPANTJOINED_TURNUSERNAME_PARAM = "turnUsername";
 	public static final String PARTICIPANTJOINED_TURNCREDENTIAL_PARAM = "turnCredential";
 

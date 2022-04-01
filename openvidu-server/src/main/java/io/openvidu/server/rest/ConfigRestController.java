@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,6 +116,7 @@ public class ConfigRestController {
 		json.addProperty("OPENVIDU_STREAMS_VIDEO_MIN_SEND_BANDWIDTH", openviduConfig.getVideoMinSendBandwidth());
 		json.addProperty("OPENVIDU_STREAMS_FORCED_VIDEO_CODEC", openviduConfig.getOpenviduForcedCodec().name());
 		json.addProperty("OPENVIDU_STREAMS_ALLOW_TRANSCODING", openviduConfig.isOpenviduAllowingTranscoding());
+		json.addProperty("OPENVIDU_WEBRTC_SIMULCAST", openviduConfig.isWebrtcSimulcast());
 		json.addProperty("OPENVIDU_SESSIONS_GARBAGE_INTERVAL", openviduConfig.getSessionGarbageInterval());
 		json.addProperty("OPENVIDU_SESSIONS_GARBAGE_THRESHOLD", openviduConfig.getSessionGarbageThreshold());
 		json.addProperty("OPENVIDU_RECORDING", openviduConfig.isRecordingModuleEnabled());

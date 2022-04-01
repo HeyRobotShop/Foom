@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ const logger: OpenViduLogger = OpenViduLogger.getInstance();
 
 
 /**
- * Defines event `sessionDisconnected` dispatched by [[Session]] after the local user has left the session. This is the local version of the `connectionDestroyed` event, which is only dispatched by remote users
+ * Triggered by [[sessionDisconnected]]
  */
 export class SessionDisconnectedEvent extends Event {
 

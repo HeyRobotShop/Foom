@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -278,7 +278,7 @@ export class WebRtcStats {
                 finalRemoteCandidate = 'ERROR: No active remote ICE candidate. Probably ICE-TCP is being used';
             }
 
-            resolve({
+            return resolve({
                 localCandidate: finalLocalCandidate,
                 remoteCandidate: finalRemoteCandidate
             });
@@ -353,69 +353,75 @@ export class WebRtcStats {
 
         return new Promise(async (resolve, reject) => {
 
-            const statsReport: any = await this.stream.getRTCPeerConnection().getStats();
-            const response: IWebrtcStats = this.getWebRtcStatsResponseOutline();
-            const videoTrackStats = ['framesReceived', 'framesDropped', 'framesSent', 'frameHeight', 'frameWidth'];
-            const candidatePairStats = ['availableOutgoingBitrate', 'currentRoundTripTime'];
+            try {
+                const statsReport: any = await this.stream.getRTCPeerConnection().getStats();
+                const response: IWebrtcStats = this.getWebRtcStatsResponseOutline();
+                const videoTrackStats = ['framesReceived', 'framesDropped', 'framesSent', 'frameHeight', 'frameWidth'];
+                const candidatePairStats = ['availableOutgoingBitrate', 'currentRoundTripTime'];
 
-            statsReport.forEach((stat: any) => {
+                statsReport.forEach((stat: any) => {
 
-                let mediaType = stat.mediaType != null ? stat.mediaType : stat.kind;
-                const addStat = (direction: string, key: string): void => {
-                    if (stat[key] != null && response[direction] != null) {
-                        if (!mediaType && (videoTrackStats.indexOf(key) > -1)) {
-                            mediaType = 'video';
-                        }
-                        if (direction != null && mediaType != null && key != null && response[direction][mediaType] != null) {
-                            response[direction][mediaType][key] = Number(stat[key]);
-                        } else if(direction != null && key != null && candidatePairStats.includes(key)) {
-                            // candidate-pair-stats
-                            response[direction][key] = Number(stat[key]);
+                    let mediaType = stat.mediaType != null ? stat.mediaType : stat.kind;
+                    const addStat = (direction: string, key: string): void => {
+                        if (stat[key] != null && response[direction] != null) {
+                            if (!mediaType && (videoTrackStats.indexOf(key) > -1)) {
+                                mediaType = 'video';
+                            }
+                            if (direction != null && mediaType != null && key != null && response[direction][mediaType] != null) {
+                                response[direction][mediaType][key] = Number(stat[key]);
+                            } else if(direction != null && key != null && candidatePairStats.includes(key)) {
+                                // candidate-pair-stats
+                                response[direction][key] = Number(stat[key]);
+                            }
                         }
                     }
+
+                    switch (stat.type) {
+                        case "outbound-rtp":
+                            addStat('outbound', 'bytesSent');
+                            addStat('outbound', 'packetsSent');
+                            addStat('outbound', 'framesEncoded');
+                            addStat('outbound', 'nackCount');
+                            addStat('outbound', 'firCount');
+                            addStat('outbound', 'pliCount');
+                            addStat('outbound', 'qpSum');
+                            break;
+                        case "inbound-rtp":
+                            addStat('inbound', 'bytesReceived');
+                            addStat('inbound', 'packetsReceived');
+                            addStat('inbound', 'packetsLost');
+                            addStat('inbound', 'jitter');
+                            addStat('inbound', 'framesDecoded');
+                            addStat('inbound', 'nackCount');
+                            addStat('inbound', 'firCount');
+                            addStat('inbound', 'pliCount');
+                            break;
+                        case 'track':
+                            addStat('inbound', 'jitterBufferDelay');
+                            addStat('inbound', 'framesReceived');
+                            addStat('outbound', 'framesDropped');
+                            addStat('outbound', 'framesSent');
+                            addStat(this.stream.isLocal() ? 'outbound' : 'inbound', 'frameHeight');
+                            addStat(this.stream.isLocal() ? 'outbound' : 'inbound', 'frameWidth');
+                            break;
+                        case 'candidate-pair':
+                            addStat('candidatepair', 'currentRoundTripTime');
+                            addStat('candidatepair', 'availableOutgoingBitrate');
+                            break;
+                    }
+                });
+
+                // Delete candidatepair from response if null
+                if(!response?.candidatepair || Object.keys(<Object>response.candidatepair).length === 0){
+                    delete response.candidatepair;
                 }
 
-                switch (stat.type) {
-                    case "outbound-rtp":
-                        addStat('outbound', 'bytesSent');
-                        addStat('outbound', 'packetsSent');
-                        addStat('outbound', 'framesEncoded');
-                        addStat('outbound', 'nackCount');
-                        addStat('outbound', 'firCount');
-                        addStat('outbound', 'pliCount');
-                        addStat('outbound', 'qpSum');
-                        break;
-                    case "inbound-rtp":
-                        addStat('inbound', 'bytesReceived');
-                        addStat('inbound', 'packetsReceived');
-                        addStat('inbound', 'packetsLost');
-                        addStat('inbound', 'jitter');
-                        addStat('inbound', 'framesDecoded');
-                        addStat('inbound', 'nackCount');
-                        addStat('inbound', 'firCount');
-                        addStat('inbound', 'pliCount');
-                        break;
-                    case 'track':
-                        addStat('inbound', 'jitterBufferDelay');
-                        addStat('inbound', 'framesReceived');
-                        addStat('outbound', 'framesDropped');
-                        addStat('outbound', 'framesSent');
-                        addStat(this.stream.isLocal() ? 'outbound' : 'inbound', 'frameHeight');
-                        addStat(this.stream.isLocal() ? 'outbound' : 'inbound', 'frameWidth');
-                        break;
-                    case 'candidate-pair':
-                        addStat('candidatepair', 'currentRoundTripTime');
-                        addStat('candidatepair', 'availableOutgoingBitrate');
-                        break;
-                }
-            });
-
-            // Delete candidatepair from response if null
-            if(!response?.candidatepair || Object.keys(<Object>response.candidatepair).length === 0){
-                delete response.candidatepair;
+                return resolve(response);
+            } catch (error) {
+                logger.error('Error getting common stats: ', error);
+                return reject(error);
             }
 
-            return resolve(response);
         });
     }
 

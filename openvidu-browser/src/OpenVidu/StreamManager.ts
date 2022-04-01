@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ import { Stream } from './Stream';
 import { Subscriber } from './Subscriber';
 import { EventDispatcher } from './EventDispatcher';
 import { StreamManagerVideo } from '../OpenViduInternal/Interfaces/Public/StreamManagerVideo';
-import { Event } from '../OpenViduInternal/Events/Event';
+import { StreamManagerEventMap } from '../OpenViduInternal/Events/EventMap/StreamManagerEventMap';
 import { StreamManagerEvent } from '../OpenViduInternal/Events/StreamManagerEvent';
 import { VideoElementEvent } from '../OpenViduInternal/Events/VideoElementEvent';
+import { ExceptionEvent, ExceptionEventName } from '../OpenViduInternal/Events/ExceptionEvent';
 import { VideoInsertMode } from '../OpenViduInternal/Enums/VideoInsertMode';
 import { OpenViduLogger } from '../OpenViduInternal/Logger/OpenViduLogger';
 import { PlatformUtils } from '../OpenViduInternal/Utils/Platform';
-import { ExceptionEvent, ExceptionEventName } from '../OpenViduInternal/Events/ExceptionEvent';
 
 /**
  * @hidden
@@ -45,16 +45,7 @@ let platform: PlatformUtils;
  * want to directly manage your own video elements (even more than one video element per Stream). This scenario is pretty common in
  * declarative, MVC frontend frameworks such as Angular, React or Vue.js
  *
- * ### Available event listeners (and events dispatched)
- *
- * - videoElementCreated ([[VideoElementEvent]])
- * - videoElementDestroyed ([[VideoElementEvent]])
- * - streamPlaying ([[StreamManagerEvent]])
- * - streamPropertyChanged ([[StreamPropertyChangedEvent]])
- * - publisherStartSpeaking ([[PublisherSpeakingEvent]])
- * - publisherStopSpeaking ([[PublisherSpeakingEvent]])
- * - streamAudioVolumeChange ([[StreamManagerEvent]])
- *
+ * See available event listeners at [[StreamManagerEventMap]].
  */
 export class StreamManager extends EventDispatcher {
 
@@ -135,7 +126,7 @@ export class StreamManager extends EventDispatcher {
                     id: '',
                     canplayListenerAdded: false
                 };
-                if (platform.isSafariBrowser()) {
+                if (platform.isSafariBrowser() || (platform.isIPhoneOrIPad() && (platform.isChromeMobileBrowser() || platform.isEdgeMobileBrowser() || platform.isOperaMobileBrowser() || platform.isFirefoxMobileBrowser()))) {
                     this.firstVideoElement.video.setAttribute('playsinline', 'true');
                 }
                 this.targetElement = targEl;
@@ -145,18 +136,6 @@ export class StreamManager extends EventDispatcher {
 
         this.canPlayListener = () => {
             this.deactivateStreamPlayingEventExceptionTimeout();
-            if (this.remote) {
-                logger.info("Remote 'Stream' with id [" + this.stream.streamId + '] video is now playing');
-                this.ee.emitEvent('videoPlaying', [new VideoElementEvent(this.videos[0].video, this, 'videoPlaying')]);
-            } else {
-                if (!this.stream.displayMyRemote()) {
-                    logger.info("Your local 'Stream' with id [" + this.stream.streamId + '] video is now playing');
-                    this.ee.emitEvent('videoPlaying', [new VideoElementEvent(this.videos[0].video, this, 'videoPlaying')]);
-                } else {
-                    logger.info("Your own remote 'Stream' with id [" + this.stream.streamId + '] video is now playing');
-                    this.ee.emitEvent('remoteVideoPlaying', [new VideoElementEvent(this.videos[0].video, this, 'remoteVideoPlaying')]);
-                }
-            }
             this.ee.emitEvent('streamPlaying', [new StreamManagerEvent(this, 'streamPlaying', undefined)]);
         };
     }
@@ -164,9 +143,9 @@ export class StreamManager extends EventDispatcher {
     /**
      * See [[EventDispatcher.on]]
      */
-    on(type: string, handler: (event: Event) => void): EventDispatcher {
+    on<K extends keyof StreamManagerEventMap>(type: K, handler: (event: StreamManagerEventMap[K]) => void): this {
 
-        super.onAux(type, "Event '" + type + "' triggered by '" + (this.remote ? 'Subscriber' : 'Publisher') + "'", handler)
+        super.onAux(type, "Event '" + type + "' triggered by '" + (this.remote ? 'Subscriber' : 'Publisher') + "'", handler);
 
         if (type === 'videoElementCreated') {
             if (!!this.stream && this.lazyLaunchVideoElementCreatedEvent) {
@@ -174,14 +153,13 @@ export class StreamManager extends EventDispatcher {
                 this.lazyLaunchVideoElementCreatedEvent = false;
             }
         }
-        if (type === 'streamPlaying' || type === 'videoPlaying') {
+        if (type === 'streamPlaying') {
             if (this.videos[0] && this.videos[0].video &&
                 this.videos[0].video.currentTime > 0 &&
                 this.videos[0].video.paused === false &&
                 this.videos[0].video.ended === false &&
                 this.videos[0].video.readyState === 4) {
                 this.ee.emitEvent('streamPlaying', [new StreamManagerEvent(this, 'streamPlaying', undefined)]);
-                this.ee.emitEvent('videoPlaying', [new VideoElementEvent(this.videos[0].video, this, 'videoPlaying')]);
             }
         }
         if (this.stream.hasAudio) {
@@ -201,7 +179,7 @@ export class StreamManager extends EventDispatcher {
     /**
      * See [[EventDispatcher.once]]
      */
-    once(type: string, handler: (event: Event) => void): StreamManager {
+    once<K extends keyof StreamManagerEventMap>(type: K, handler: (event: StreamManagerEventMap[K]) => void): this {
 
         super.onceAux(type, "Event '" + type + "' triggered once by '" + (this.remote ? 'Subscriber' : 'Publisher') + "'", handler);
 
@@ -210,14 +188,13 @@ export class StreamManager extends EventDispatcher {
                 this.ee.emitEvent('videoElementCreated', [new VideoElementEvent(this.videos[0].video, this, 'videoElementCreated')]);
             }
         }
-        if (type === 'streamPlaying' || type === 'videoPlaying') {
+        if (type === 'streamPlaying') {
             if (this.videos[0] && this.videos[0].video &&
                 this.videos[0].video.currentTime > 0 &&
                 this.videos[0].video.paused === false &&
                 this.videos[0].video.ended === false &&
                 this.videos[0].video.readyState === 4) {
                 this.ee.emitEvent('streamPlaying', [new StreamManagerEvent(this, 'streamPlaying', undefined)]);
-                this.ee.emitEvent('videoPlaying', [new VideoElementEvent(this.videos[0].video, this, 'videoPlaying')]);
             }
         }
         if (this.stream.hasAudio) {
@@ -237,9 +214,9 @@ export class StreamManager extends EventDispatcher {
     /**
      * See [[EventDispatcher.off]]
      */
-    off(type: string, handler?: (event: Event) => void): StreamManager {
+    off<K extends keyof StreamManagerEventMap>(type: K, handler?: (event: StreamManagerEventMap[K]) => void): this {
 
-        super.off(type, handler);
+        super.offAux(type, handler);
 
         if (type === 'publisherStartSpeaking') {
             // Both StreamManager and Session can have "publisherStartSpeaking" event listeners
@@ -385,7 +362,7 @@ export class StreamManager extends EventDispatcher {
     }
 
     /**
-     * Updates the current configuration for the [[PublisherSpeakingEvent]] feature and the [StreamManagerEvent.streamAudioVolumeChange](/en/stable/api/openvidu-browser/classes/streammanagerevent.html) feature for this specific
+     * Updates the current configuration for the [[PublisherSpeakingEvent]] feature and the [StreamManagerEvent.streamAudioVolumeChange](/en/stable/api/openvidu-browser/classes/StreamManagerEvent.html) feature for this specific
      * StreamManager audio stream, overriding the global options set with [[OpenVidu.setAdvancedConfiguration]]. This way you can customize the audio events options
      * for each specific StreamManager and change them dynamically.
      *
@@ -425,7 +402,7 @@ export class StreamManager extends EventDispatcher {
         video.autoplay = true;
         video.controls = false;
 
-        if (platform.isSafariBrowser()) {
+        if (platform.isSafariBrowser() || (platform.isIPhoneOrIPad() && (platform.isChromeMobileBrowser() || platform.isEdgeMobileBrowser() || platform.isOperaMobileBrowser() || platform.isFirefoxMobileBrowser()))) {
             video.setAttribute('playsinline', 'true');
         }
 
@@ -437,12 +414,17 @@ export class StreamManager extends EventDispatcher {
             }
         }
 
-        if (!this.remote && !this.stream.displayMyRemote()) {
+        if (this.remote && this.isMirroredVideo(video)) {
+            // Subscriber video associated to a previously mirrored video element
+            this.removeMirrorVideo(video);
+        } else if (!this.remote && !this.stream.displayMyRemote()) {
+            // Publisher video
             video.muted = true;
-            if (video.style.transform === 'rotateY(180deg)' && !this.stream.outboundStreamOpts.publisherProperties.mirror) {
+            if (this.isMirroredVideo(video) && !this.stream.outboundStreamOpts.publisherProperties.mirror) {
                 // If the video was already rotated and now is set to not mirror
                 this.removeMirrorVideo(video);
             } else if (this.stream.outboundStreamOpts.publisherProperties.mirror && !this.stream.isSendScreen()) {
+                // If the video is now set to mirror and is not screen share
                 this.mirrorVideo(video);
             }
         }
@@ -554,16 +536,20 @@ export class StreamManager extends EventDispatcher {
         }
     }
 
-    private mirrorVideo(video): void {
+    private mirrorVideo(video: HTMLVideoElement): void {
         if (!platform.isIonicIos()) {
             video.style.transform = 'rotateY(180deg)';
             video.style.webkitTransform = 'rotateY(180deg)';
         }
     }
 
-    private removeMirrorVideo(video): void {
+    private removeMirrorVideo(video: HTMLVideoElement): void {
         video.style.transform = 'unset';
         video.style.webkitTransform = 'unset';
+    }
+
+    private isMirroredVideo(video: HTMLVideoElement): boolean {
+        return video.style.transform === 'rotateY(180deg)' || video.style.webkitTransform === 'rotateY(180deg)';
     }
 
     private activateStreamPlayingEventExceptionTimeout() {

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.openvidu.server.utils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -30,24 +31,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.command.InspectContainerResponse.Mount;
 import com.github.dockerjava.api.command.InspectImageResponse;
+import com.github.dockerjava.api.command.PullImageResultCallback;
 import com.github.dockerjava.api.exception.ConflictException;
 import com.github.dockerjava.api.exception.DockerClientException;
 import com.github.dockerjava.api.exception.InternalServerErrorException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.DeviceRequest;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
-import com.github.dockerjava.core.command.ExecStartResultCallback;
-import com.github.dockerjava.core.command.PullImageResultCallback;
+import com.google.common.collect.ImmutableList;
 
 import io.openvidu.client.OpenViduException;
 import io.openvidu.client.OpenViduException.Code;
@@ -118,7 +122,7 @@ public class LocalDockerManager implements DockerManager {
 	@Override
 	public String runContainer(String mediaNodeId, String image, String containerName, String user,
 			List<Volume> volumes, List<Bind> binds, String networkMode, List<String> envs, List<String> command,
-			Long shmSize, boolean privileged, Map<String, String> labels) throws Exception {
+			Long shmSize, boolean privileged, Map<String, String> labels, boolean enableGPU) throws Exception {
 
 		CreateContainerCmd cmd = dockerClient.createContainerCmd(image).withEnv(envs);
 		if (containerName != null) {
@@ -133,6 +137,13 @@ public class LocalDockerManager implements DockerManager {
 		if (shmSize != null) {
 			hostConfig.withShmSize(shmSize);
 		}
+
+		if (enableGPU) {
+			DeviceRequest deviceRequest = new DeviceRequest()
+					.withCapabilities(ImmutableList.of(ImmutableList.of("gpu"))).withCount(-1).withOptions(null);
+			hostConfig.withDeviceRequests(ImmutableList.of(deviceRequest));
+		}
+
 		if (volumes != null) {
 			cmd.withVolumes(volumes);
 		}
@@ -188,7 +199,7 @@ public class LocalDockerManager implements DockerManager {
 		ExecCreateCmdResponse execCreateCmdResponse = dockerClient.execCreateCmd(containerId).withAttachStdout(true)
 				.withAttachStderr(true).withCmd("bash", "-c", command).exec();
 		CountDownLatch latch = new CountDownLatch(1);
-		dockerClient.execStartCmd(execCreateCmdResponse.getId()).exec(new ExecStartResultCallback() {
+		dockerClient.execStartCmd(execCreateCmdResponse.getId()).exec(new ResultCallback.Adapter<>() {
 			@Override
 			public void onComplete() {
 				latch.countDown();
@@ -206,7 +217,7 @@ public class LocalDockerManager implements DockerManager {
 	public void runCommandInContainerAsync(String mediaNodeId, String containerId, String command) throws IOException {
 		ExecCreateCmdResponse execCreateCmdResponse = dockerClient.execCreateCmd(containerId).withAttachStdout(true)
 				.withAttachStderr(true).withCmd("bash", "-c", command).exec();
-		dockerClient.execStartCmd(execCreateCmdResponse.getId()).exec(new ExecStartResultCallback() {
+		dockerClient.execStartCmd(execCreateCmdResponse.getId()).exec(new ResultCallback.Adapter<>() {
 		});
 	}
 
@@ -238,7 +249,8 @@ public class LocalDockerManager implements DockerManager {
 
 	public List<String> getRunningContainers(String fullImageName) {
 		List<String> containerIds = new ArrayList<>();
-		List<Container> existingContainers = this.dockerClient.listContainersCmd().exec();
+		List<Container> existingContainers = this.dockerClient.listContainersCmd()
+				.withStatusFilter(Arrays.asList("created", "restarting", "running")).exec();
 		for (Container container : existingContainers) {
 			if (container.getImage().startsWith(fullImageName)) {
 				containerIds.add(container.getId());
@@ -247,6 +259,18 @@ public class LocalDockerManager implements DockerManager {
 			}
 		}
 		return containerIds;
+	}
+
+	public List<Mount> getMountsForContainers(List<String> containers) {
+		List<Mount> mounts = new ArrayList<>();
+		for (String container : containers) {
+			mounts.addAll(this.dockerClient.inspectContainerCmd(container).exec().getMounts());
+		}
+		return mounts;
+	}
+
+	public void removeVolume(String volumeId) throws NotFoundException {
+		this.dockerClient.removeVolumeCmd(volumeId).exec();
 	}
 
 	public String getImageId(String fullImageName) {

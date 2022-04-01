@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,7 @@ import { Session } from '../../OpenVidu/Session';
 import { Connection } from '../../OpenVidu/Connection';
 
 /**
- * **This feature is part of OpenVidu Pro tier** <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank" style="display: inline-block; background-color: rgb(0, 136, 170); color: white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius: 3px; font-size: 13px; line-height:21px; font-family: Montserrat, sans-serif">PRO</a>
- * 
- * Defines event `networkQualityLevelChanged` dispatched by [[Session]].
- * This event is fired when the network quality level of a [[Connection]] changes. See [network quality](/en/stable/advanced-features/network-quality/)
+ * Triggered by [[networkQualityLevelChanged]]
  */
 export class NetworkQualityLevelChangedEvent extends Event {
 

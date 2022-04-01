@@ -1,0 +1,47 @@
+.participants-container {
+	margin: 20px;
+	background-color: var(--ov-panel-background);
+	border-radius: var(--ov-panel-radius);
+	max-height: calc(100% - 40px);
+	min-height: calc(100% - 40px);
+}
+
+.header-container {
+	padding: 10px;
+	display: flex;
+}
+
+.header-container h3 {
+	margin-left: 5px;
+	margin-top: auto;
+	margin-bottom: auto;
+}
+
+.header-container button {
+	margin-left: auto;
+	border-radius: var(--ov-buttons-radius);
+}
+
+.local-participant-container, .remote-participants-container {
+    margin: 5px 10px;
+}
+
+.scrollable {
+	height: calc(100% - 60px);
+	max-height: calc(100% - 60px);
+	overflow: auto;
+}
+
+.message-container{
+	padding: 5px;
+	background-color: var(--ov-secondary-light-color);
+	color: var(--ov-panel-text-color);
+	text-align: center;
+	margin: 5px 5px;
+	font-size: 12px;
+}
+
+.message-container p{
+	margin: 0;
+
+}

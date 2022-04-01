@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ package io.openvidu.test.browsers;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -60,18 +61,24 @@ public class BrowserUser {
 	}
 
 	protected void configureDriver() {
-		this.waiter = new WebDriverWait(this.driver, this.timeOfWaitInSeconds);
-		this.driver.manage().window().setSize(new org.openqa.selenium.Dimension(1920, 1080));
+		this.waiter = new WebDriverWait(this.driver, timeOfWaitInSeconds);
 	}
 
-	public void dispose() {
-		this.driver.quit();
+	protected void configureDriver(Dimension windowDimensions) {
+		this.configureDriver();
+		if (windowDimensions != null) {
+			this.driver.manage().window().setSize(windowDimensions);
+		}
 	}
 
 	public void waitWithNewTime(int newWaitTime, ExpectedCondition<?> condition) {
 		this.waiter.withTimeout(Duration.of(newWaitTime, ChronoUnit.SECONDS));
 		this.waiter.until(condition);
-		this.waiter.withTimeout(Duration.of(this.timeOfWaitInSeconds, ChronoUnit.SECONDS));
+		this.waiter.withTimeout(Duration.of(this.getTimeOfWait(), ChronoUnit.SECONDS));
+	}
+
+	public void dispose() {
+		this.driver.quit();
 	}
 
 }

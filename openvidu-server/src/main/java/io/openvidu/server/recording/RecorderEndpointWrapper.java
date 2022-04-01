@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import org.kurento.client.RecorderEndpoint;
 import com.google.gson.JsonObject;
 
 import io.openvidu.server.kurento.core.KurentoParticipant;
-import io.openvidu.server.recording.service.RecordingService;
 
 public class RecorderEndpointWrapper {
 
 	private RecorderEndpoint recorder;
 	private KurentoParticipant kParticipant;
 	private String name;
+	private String fileExtension;
 	private String connectionId;
 	private String recordingId;
 	private String streamId;
@@ -44,8 +44,9 @@ public class RecorderEndpointWrapper {
 	private long size;
 
 	public RecorderEndpointWrapper(RecorderEndpoint recorder, KurentoParticipant kParticipant, String recordingId,
-			String name) {
+			String name, String fileExtension) {
 		this.name = name;
+		this.fileExtension = fileExtension;
 		this.recorder = recorder;
 		this.kParticipant = kParticipant;
 		this.recordingId = recordingId;
@@ -58,10 +59,11 @@ public class RecorderEndpointWrapper {
 		this.typeOfVideo = kParticipant.getPublisher().getMediaOptions().getTypeOfVideo();
 	}
 
-	public RecorderEndpointWrapper(JsonObject json) {
+	public RecorderEndpointWrapper(JsonObject json, String fileExtension) {
 		String nameAux = json.get("name").getAsString();
 		// If the name includes the extension, remove it
-		this.name = StringUtils.removeEnd(nameAux, RecordingService.INDIVIDUAL_RECORDING_EXTENSION);
+		this.name = StringUtils.removeEnd(nameAux, fileExtension);
+		this.fileExtension = fileExtension;
 		this.connectionId = json.get("connectionId").getAsString();
 		this.streamId = json.get("streamId").getAsString();
 		this.clientData = (json.has("clientData") && !json.get("clientData").isJsonNull())
@@ -91,7 +93,7 @@ public class RecorderEndpointWrapper {
 	}
 
 	public String getNameWithExtension() {
-		return this.name + RecordingService.INDIVIDUAL_RECORDING_EXTENSION;
+		return this.name + fileExtension;
 	}
 
 	public String getConnectionId() {

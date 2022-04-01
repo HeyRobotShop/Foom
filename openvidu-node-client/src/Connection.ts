@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 import { Publisher } from './Publisher';
 import { ConnectionProperties } from './ConnectionProperties';
 import { OpenViduRole } from './OpenViduRole';
+import { IceServerProperties } from './IceServerProperties';
 
 /**
  * See [[Session.connections]]
@@ -34,7 +35,7 @@ export class Connection {
      * Returns the status of the Connection. Can be:
      * - `pending`: if the Connection is waiting for any user to use
      * its internal token to connect to the session, calling method
-     * [Session.connect](https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/session.html#connect)
+     * [Session.connect](https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/Session.html#connect)
      * in OpenVidu Browser.
      * - `active`: if the internal token of the Connection has already
      * been used by some user to connect to the session, and it cannot be used
@@ -54,10 +55,15 @@ export class Connection {
     activeAt: number;
 
     /**
-     * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank" style="display: inline-block; background-color: rgb(0, 136, 170); color: white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius: 3px; font-size: 13px; line-height:21px; font-family: Montserrat, sans-serif">PRO</a>
+     * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" style="display: inline-block; background-color: rgb(0, 136, 170); color: white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius: 3px; font-size: 13px; line-height:21px; font-family: Montserrat, sans-serif">PRO</a>
      * Geo location of the Connection, with the following format: `"CITY, COUNTRY"` (`"unknown"` if it wasn't possible to locate it)
      */
     location: string;
+
+    /**
+     * IP of the Connection, as seen by OpenVidu Server
+     */
+    ip: string;
 
     /**
      * A complete description of the platform used by the participant to connect to the session
@@ -66,7 +72,7 @@ export class Connection {
 
     /**
      * Data associated to the Connection on the client-side. This value is set with second parameter of method
-     * [Session.connect](/en/stable/api/openvidu-browser/classes/session.html#connect) in OpenVidu Browser
+     * [Session.connect](/en/stable/api/openvidu-browser/classes/Session.html#connect) in OpenVidu Browser
      */
     clientData: string;
 
@@ -77,7 +83,7 @@ export class Connection {
 
     /**
      * Token associated to the Connection. This is the value that must be sent to the client-side to be consumed in OpenVidu Browser
-     * method [Session.connect](https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/session.html#connect).
+     * method [Session.connect](https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/Session.html#connect).
      */
     token: string;
 
@@ -119,6 +125,7 @@ export class Connection {
         this.createdAt = json.createdAt;
         this.activeAt = json.activeAt;
         this.location = json.location;
+        this.ip = json.ip;
         this.platform = json.platform;
         this.clientData = json.clientData;
         this.token = json.token;
@@ -132,6 +139,7 @@ export class Connection {
             this.connectionProperties.adaptativeBitrate = json.adaptativeBitrate;
             this.connectionProperties.onlyPlayWithSubscribers = json.onlyPlayWithSubscribers;
             this.connectionProperties.networkCache = json.networkCache;
+            this.connectionProperties.customIceServers = json.customIceServers ?? []
         } else {
             this.connectionProperties = {
                 type: json.type,
@@ -142,7 +150,8 @@ export class Connection {
                 rtspUri: json.rtspUri,
                 adaptativeBitrate: json.adaptativeBitrate,
                 onlyPlayWithSubscribers: json.onlyPlayWithSubscribers,
-                networkCache: json.networkCache
+                networkCache: json.networkCache,
+                customIceServers: json.customIceServers ?? []
             }
         }
         this.role = json.role;
@@ -218,8 +227,10 @@ export class Connection {
             this.connectionProperties.adaptativeBitrate === other.connectionProperties.adaptativeBitrate &&
             this.connectionProperties.onlyPlayWithSubscribers === other.connectionProperties.onlyPlayWithSubscribers &&
             this.connectionProperties.networkCache === other.connectionProperties.networkCache &&
+            this.connectionProperties.customIceServers.length === other.connectionProperties.customIceServers.length &&
             this.token === other.token &&
             this.location === other.location &&
+            this.ip === other.ip &&
             this.platform === other.platform &&
             this.clientData === other.clientData &&
             this.subscribers.length === other.subscribers.length &&
@@ -229,6 +240,15 @@ export class Connection {
                 equals = JSON.stringify(this.connectionProperties.kurentoOptions) === JSON.stringify(other.connectionProperties.kurentoOptions);
             } else {
                 equals = (this.connectionProperties.kurentoOptions === other.connectionProperties.kurentoOptions);
+            }
+        }
+        if (equals) {
+            if (this.connectionProperties.customIceServers != null) {
+                // Order alphabetically Ice servers using url just to keep the same list order.
+                const simpleIceComparator = (a: IceServerProperties, b: IceServerProperties) => (a.url > b.url) ? 1 : -1
+                const sortedIceServers = this.connectionProperties.customIceServers.sort(simpleIceComparator);
+                const sortedOtherIceServers = other.connectionProperties.customIceServers.sort(simpleIceComparator);
+                equals = JSON.stringify(sortedIceServers) === JSON.stringify(sortedOtherIceServers);
             }
         }
         if (equals) {

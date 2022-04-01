@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@ import { Stream } from './Stream';
 import { LocalRecorderState } from '../OpenViduInternal/Enums/LocalRecorderState';
 import { OpenViduLogger } from '../OpenViduInternal/Logger/OpenViduLogger';
 import { PlatformUtils } from '../OpenViduInternal/Utils/Platform';
+import Mime = require('mime/lite');
 
-
-/**
- * @hidden
- */
-declare var MediaRecorder: any;
 /**
  * @hidden
  */
@@ -38,17 +34,13 @@ let platform: PlatformUtils;
 
 /**
  * Easy recording of [[Stream]] objects straightaway from the browser. Initialized with [[OpenVidu.initLocalRecorder]] method
- *
- * > WARNINGS:
- * - Performing browser local recording of **remote streams** may cause some troubles. A long waiting time may be required after calling _LocalRecorder.stop()_ in this case
- * - Only Chrome and Firefox support local stream recording
  */
 export class LocalRecorder {
 
     state: LocalRecorderState;
 
     private connectionId: string;
-    private mediaRecorder: any;
+    private mediaRecorder: MediaRecorder;
     private chunks: any[] = [];
     private blob?: Blob;
     private id: string;
@@ -69,46 +61,57 @@ export class LocalRecorder {
     /**
      * Starts the recording of the Stream. [[state]] property must be `READY`. After method succeeds is set to `RECORDING`
      *
-     * @param mimeType The [MediaRecorder.mimeType](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/mimeType) to be used to record this Stream.
-     * Make sure the platform supports it or the promise will return an error. If this parameter is not provided, the MediaRecorder will use the default codecs available in the platform
+     * @param options The [MediaRecorder.options](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/MediaRecorder#parameters) to be used to record this Stream.
+     * For example: 
+     * 
+     * ```javascript
+     * var OV = new OpenVidu();
+     * var publisher = await OV.initPublisherAsync();
+     * var localRecorder = OV.initLocalRecorder(publisher.stream);
+     * var options = {
+     *      mimeType: 'video/webm;codecs=vp8',
+     *      audioBitsPerSecond:128000,
+     *      videoBitsPerSecond:2500000
+     * };
+     * localRecorder.record(options);
+     * ```
+     * 
+     * If not specified, the default options preferred by the platform will be used.
      *
      * @returns A Promise (to which you can optionally subscribe to) that is resolved if the recording successfully started and rejected with an Error object if not
      */
-    record(mimeType?: string): Promise<void> {
+    record(options?: any): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
+                if (typeof options === 'string' || options instanceof String) {
+                    return reject(`When calling LocalRecorder.record(options) parameter 'options' cannot be a string. Must be an object like { mimeType: "${options}" }`);
+                }
                 if (typeof MediaRecorder === 'undefined') {
-                    logger.error('MediaRecorder not supported on your browser. See compatibility in https://caniuse.com/#search=MediaRecorder');
-                    throw (Error('MediaRecorder not supported on your browser. See compatibility in https://caniuse.com/#search=MediaRecorder'));
+                    logger.error('MediaRecorder not supported on your device. See compatibility in https://caniuse.com/#search=MediaRecorder');
+                    throw (Error('MediaRecorder not supported on your device. See compatibility in https://caniuse.com/#search=MediaRecorder'));
                 }
                 if (this.state !== LocalRecorderState.READY) {
                     throw (Error('\'LocalRecord.record()\' needs \'LocalRecord.state\' to be \'READY\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.clean()\' or init a new LocalRecorder before'));
                 }
                 logger.log("Starting local recording of stream '" + this.stream.streamId + "' of connection '" + this.connectionId + "'");
 
-                let options = {};
-                if (typeof MediaRecorder.isTypeSupported === 'function') {
-                    if (!!mimeType) {
-                        if (!MediaRecorder.isTypeSupported(mimeType)) {
-                            reject(new Error('mimeType "' + mimeType + '" is not supported'));
-                        }
-                        options = { mimeType };
-                    } else {
-                        logger.log('No mimeType parameter provided. Using default codecs');
-                    }
-                } else {
-                    logger.warn('MediaRecorder#isTypeSupported is not supported. Using default codecs');
+                if (!options) {
+                    options = { mimeType: 'video/webm' };
+                } else if (!options.mimeType) {
+                    options.mimeType = 'video/webm';
                 }
 
                 this.mediaRecorder = new MediaRecorder(this.stream.getMediaStream(), options);
-                this.mediaRecorder.start(10);
+                this.mediaRecorder.start();
 
             } catch (err) {
-                reject(err);
+                return reject(err);
             }
 
             this.mediaRecorder.ondataavailable = (e) => {
-                this.chunks.push(e.data);
+                if (e.data.size > 0) {
+                    this.chunks.push(e.data);
+                }
             };
 
             this.mediaRecorder.onerror = (e) => {
@@ -131,12 +134,8 @@ export class LocalRecorder {
                 logger.log('MediaRecorder resumed (state=' + this.mediaRecorder.state + ')');
             };
 
-            this.mediaRecorder.onwarning = (e) => {
-                logger.log('MediaRecorder warning: ' + e);
-            };
-
             this.state = LocalRecorderState.RECORDING;
-            resolve();
+            return resolve();
 
         });
     }
@@ -154,11 +153,11 @@ export class LocalRecorder {
                 }
                 this.mediaRecorder.onstop = () => {
                     this.onStopDefault();
-                    resolve();
+                    return resolve();
                 };
                 this.mediaRecorder.stop();
             } catch (e) {
-                reject(e);
+                return reject(e);
             }
         });
     }
@@ -172,13 +171,13 @@ export class LocalRecorder {
         return new Promise((resolve, reject) => {
             try {
                 if (this.state !== LocalRecorderState.RECORDING) {
-                    reject(Error('\'LocalRecord.pause()\' needs \'LocalRecord.state\' to be \'RECORDING\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.start()\' or \'LocalRecorder.resume()\' before'));
+                    return reject(Error('\'LocalRecord.pause()\' needs \'LocalRecord.state\' to be \'RECORDING\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.start()\' or \'LocalRecorder.resume()\' before'));
                 }
                 this.mediaRecorder.pause();
                 this.state = LocalRecorderState.PAUSED;
-                resolve();
+                return resolve();
             } catch (error) {
-                reject(error);
+                return reject(error);
             }
         });
     }
@@ -195,9 +194,9 @@ export class LocalRecorder {
                 }
                 this.mediaRecorder.resume();
                 this.state = LocalRecorderState.RECORDING;
-                resolve();
+                return resolve();
             } catch (error) {
-                reject(error);
+                return reject(error);
             }
         });
     }
@@ -243,7 +242,6 @@ export class LocalRecorder {
         const f = () => {
             delete this.blob;
             this.chunks = [];
-            delete this.mediaRecorder;
             this.state = LocalRecorderState.READY;
         };
         if (this.state === LocalRecorderState.RECORDING || this.state === LocalRecorderState.PAUSED) {
@@ -265,9 +263,9 @@ export class LocalRecorder {
             a.style.display = 'none';
             document.body.appendChild(a);
 
-            const url = window.URL.createObjectURL(this.blob);
+            const url = window.URL.createObjectURL(<any>this.blob);
             a.href = url;
-            a.download = this.id + '.webm';
+            a.download = this.id + '.' + Mime.getExtension(this.blob!.type);
             a.click();
             window.URL.revokeObjectURL(url);
 
@@ -300,7 +298,7 @@ export class LocalRecorder {
     uploadAsBinary(endpoint: string, headers?: any): Promise<any> {
         return new Promise((resolve, reject) => {
             if (this.state !== LocalRecorderState.FINISHED) {
-                reject(Error('\'LocalRecord.uploadAsBinary()\' needs \'LocalRecord.state\' to be \'FINISHED\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.stop()\' before'));
+                return reject(Error('\'LocalRecord.uploadAsBinary()\' needs \'LocalRecord.state\' to be \'FINISHED\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.stop()\' before'));
             } else {
                 const http = new XMLHttpRequest();
                 http.open('POST', endpoint, true);
@@ -315,9 +313,9 @@ export class LocalRecorder {
                     if (http.readyState === 4) {
                         if (http.status.toString().charAt(0) === '2') {
                             // Success response from server (HTTP status standard: 2XX is success)
-                            resolve(http.responseText);
+                            return resolve(http.responseText);
                         } else {
-                            reject(http.status);
+                            return reject(http.status);
                         }
                     }
                 };
@@ -340,7 +338,7 @@ export class LocalRecorder {
     uploadAsMultipartfile(endpoint: string, headers?: any): Promise<any> {
         return new Promise((resolve, reject) => {
             if (this.state !== LocalRecorderState.FINISHED) {
-                reject(Error('\'LocalRecord.uploadAsMultipartfile()\' needs \'LocalRecord.state\' to be \'FINISHED\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.stop()\' before'));
+                return reject(Error('\'LocalRecord.uploadAsMultipartfile()\' needs \'LocalRecord.state\' to be \'FINISHED\' (current value: \'' + this.state + '\'). Call \'LocalRecorder.stop()\' before'));
             } else {
                 const http = new XMLHttpRequest();
                 http.open('POST', endpoint, true);
@@ -352,15 +350,15 @@ export class LocalRecorder {
                 }
 
                 const sendable = new FormData();
-                sendable.append('file', this.blob!, this.id + '.webm');
+                sendable.append('file', this.blob!, this.id + '.' + Mime.getExtension(this.blob!.type));
 
                 http.onreadystatechange = () => {
                     if (http.readyState === 4) {
                         if (http.status.toString().charAt(0) === '2') {
                             // Success response from server (HTTP status standard: 2XX is success)
-                            resolve(http.responseText);
+                            return resolve(http.responseText);
                         } else {
-                            reject(http.status);
+                            return reject(http.status);
                         }
                     }
                 };
@@ -376,7 +374,7 @@ export class LocalRecorder {
     private onStopDefault(): void {
         logger.log('MediaRecorder stopped  (state=' + this.mediaRecorder.state + ')');
 
-        this.blob = new Blob(this.chunks, { type: 'video/webm' });
+        this.blob = new Blob(this.chunks, { type: this.mediaRecorder.mimeType });
         this.chunks = [];
 
         this.videoPreviewSrc = window.URL.createObjectURL(this.blob);

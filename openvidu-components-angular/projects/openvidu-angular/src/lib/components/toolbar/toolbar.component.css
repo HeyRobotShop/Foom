@@ -1,0 +1,109 @@
+#toolbar {
+	height: 100%;
+	background-color: transparent;
+	color: var(--ov-text-color);
+}
+
+.buttonsContainer {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#info-container>div {
+	display: flex;
+	align-items: center;
+}
+#media-buttons-container {
+	max-height: 100% !important;
+}
+
+#media-buttons-container > button,
+::ng-deep #media-buttons-container > button,
+#media-buttons-container:not(#media-buttons-container > button) button,
+/* Applying css for external additional buttons*/
+::ng-deep #media-buttons-container:not(#media-buttons-container > button) button {
+	width: 40px;
+	height: 40px;
+	background-color: var(--ov-secondary-color);
+	margin: 6px;
+}
+
+.warn-btn {
+	background-color: var(--ov-warn-color) !important;
+}
+
+.active-btn, ::ng-deep .active-btn {
+	background-color: var(--ov-tertiary-color) !important;
+}
+
+#media-buttons-container mat-icon {
+	font-size: 24px;
+}
+
+#media-buttons-container button, #menu-buttons-container button {
+	border-radius: var(--ov-buttons-radius);
+}
+
+#branding-logo {
+	background-color: var(--ov-secondary-color);
+	border-radius: var(--ov-panel-radius);
+	max-width: 35px;
+	max-height: 35px;
+	padding: 10px;
+}
+
+  #session-name {
+	font-family: 'Ubuntu', sans-serif;
+	font-weight: bold;
+	font-size: 15px;
+	height: fit-content;
+	padding: 0px 15px;
+  }
+
+  #point {
+	width: 10px;
+	height: 10px;
+	position: absolute;
+	top: 12px;
+	right: 33px;
+	border-radius: var(--ov-buttons-radius);
+	background-color: #ffa600;
+	border: 1px solid #000;
+	z-index: 99999;
+  }
+
+  #leave-btn {
+	  background-color: var(--ov-warn-color) !important;
+	  border-radius: var(--ov-leave-button-radius) !important;
+	  width: 60px !important;
+  }
+
+
+  .tooltipList {
+	white-space: pre;
+  }
+
+
+  #navChatButton .mat-badge-medium.mat-badge-overlap.mat-badge-before .mat-badge-content {
+	left: -17px;
+  }
+
+  #navChatButton .mat-badge-medium.mat-badge-above .mat-badge-content {
+	top: -6px;
+  }
+
+  .mat-icon-button[disabled] {
+	color: #fff;
+  }
+  @media (max-width: 750px) {
+	#session-name {
+	  display: none;
+	}
+  }
+
+  @media (max-width: 850px) {
+	#branding-logo {
+	  display: none;
+	}
+  }

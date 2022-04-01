@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,6 +112,14 @@ export class OpenVidu {
   /**
    * @hidden
    */
+  videoSimulcast: boolean;
+  /**
+   * @hidden
+   */
+  life: number = -1;
+  /**
+   * @hidden
+   */
   advancedConfiguration: OpenViduAdvancedConfiguration = {};
   /**
    * @hidden
@@ -134,10 +142,6 @@ export class OpenVidu {
    */
   ee = new EventEmitter()
 
-  onOrientationChanged(handler): void {
-    (<any>window).addEventListener('orientationchange', handler);
-  }
-
   constructor() {
     platform = PlatformUtils.getInstance();
     this.libraryVersion = packageJson.version;
@@ -156,49 +160,6 @@ export class OpenVidu {
       });
     }
   }
-
-  sendNewVideoDimensionsIfRequired(publisher: Publisher, reason: string, WAIT_INTERVAL: number, MAX_ATTEMPTS: number) {
-    let attempts = 0;
-    const oldWidth = publisher.stream.videoDimensions.width;
-    const oldHeight = publisher.stream.videoDimensions.height;
-
-    const repeatUntilChangeOrMaxAttempts: NodeJS.Timeout = setInterval(() => {
-      attempts++;
-      if (attempts > MAX_ATTEMPTS) {
-        clearTimeout(repeatUntilChangeOrMaxAttempts);
-      }
-      publisher.getVideoDimensions(publisher.stream.getMediaStream()).then(newDimensions => {
-        if (newDimensions.width !== oldWidth || newDimensions.height !== oldHeight) {
-          clearTimeout(repeatUntilChangeOrMaxAttempts);
-          this.sendVideoDimensionsChangedEvent(publisher, reason, oldWidth, oldHeight, newDimensions.width, newDimensions.height);
-        }
-      });
-    }, WAIT_INTERVAL);
-  }
-
-  sendVideoDimensionsChangedEvent(publisher: Publisher, reason: string, oldWidth: number, oldHeight: number, newWidth: number, newHeight: number) {
-    publisher.stream.videoDimensions = {
-      width: newWidth || 0,
-      height: newHeight || 0
-    };
-    this.sendRequest(
-      'streamPropertyChanged',
-      {
-        streamId: publisher.stream.streamId,
-        property: 'videoDimensions',
-        newValue: JSON.stringify(publisher.stream.videoDimensions),
-        reason
-      },
-      (error, response) => {
-        if (error) {
-          logger.error("Error sending 'streamPropertyChanged' event", error);
-        } else {
-          this.session.emitEvent('streamPropertyChanged', [new StreamPropertyChangedEvent(this.session, publisher.stream, 'videoDimensions', publisher.stream.videoDimensions, { width: oldWidth, height: oldHeight }, reason)]);
-          publisher.emitEvent('streamPropertyChanged', [new StreamPropertyChangedEvent(publisher, publisher.stream, 'videoDimensions', publisher.stream.videoDimensions, { width: oldWidth, height: oldHeight }, reason)]);
-          this.session.sendVideoData(publisher);
-        }
-      });
-  };
 
   /**
    * Returns new session
@@ -253,6 +214,7 @@ export class OpenVidu {
         publishVideo: (typeof properties.publishVideo !== 'undefined') ? properties.publishVideo : true,
         resolution: (typeof MediaStreamTrack !== 'undefined' && properties.videoSource instanceof MediaStreamTrack) ? undefined : ((typeof properties.resolution !== 'undefined') ? properties.resolution : '640x480'),
         videoSource: (typeof properties.videoSource !== 'undefined') ? properties.videoSource : undefined,
+        videoSimulcast: properties.videoSimulcast,
         filter: properties.filter
       };
     } else {
@@ -310,9 +272,9 @@ export class OpenVidu {
 
       const callback = (error: Error) => {
         if (!!error) {
-          reject(error);
+          return reject(error);
         } else {
-          resolve(publisher);
+          return resolve(publisher);
         }
       };
 
@@ -341,7 +303,8 @@ export class OpenVidu {
   checkSystemRequirements(): number {
 
     if (platform.isIPhoneOrIPad()) {
-      if (platform.isIOSWithSafari() || platform.isIonicIos()) {
+      if (platform.isIOSWithSafari() || platform.isIonicIos() ||
+        platform.isChromeMobileBrowser() || platform.isEdgeMobileBrowser() || platform.isOperaMobileBrowser() || platform.isFirefoxMobileBrowser()) {
         return 1;
       }
       return 0;
@@ -453,7 +416,7 @@ export class OpenVidu {
                 });
               }
             });
-            resolve(devices);
+            return resolve(devices);
           });
         } else {
 
@@ -467,11 +430,11 @@ export class OpenVidu {
               });
             }
           });
-          resolve(devices);
+          return resolve(devices);
         }
       }).catch((error) => {
         logger.error('Error getting devices', error);
-        reject(error);
+        return reject(error);
       });
     });
   }
@@ -534,7 +497,7 @@ export class OpenVidu {
         navigator.mediaDevices.getUserMedia(constraintsAux)
           .then(audioOnlyStream => {
             previousMediaStream.addTrack(audioOnlyStream.getAudioTracks()[0]);
-            resolve(previousMediaStream);
+            return resolve(previousMediaStream);
           })
           .catch(error => {
             previousMediaStream.getAudioTracks().forEach((track) => {
@@ -543,7 +506,7 @@ export class OpenVidu {
             previousMediaStream.getVideoTracks().forEach((track) => {
               track.stop();
             });
-            reject(this.generateAudioDeviceError(error, constraintsAux));
+            return reject(this.generateAudioDeviceError(error, constraintsAux));
           });
       }
 
@@ -554,7 +517,7 @@ export class OpenVidu {
           !!myConstraints.videoTrack && myConstraints.constraints?.audio === false) {
 
           // No need to call getUserMedia at all. Both tracks provided, or only AUDIO track provided or only VIDEO track provided
-          resolve(this.addAlreadyProvidedTracks(myConstraints, new MediaStream()));
+          return resolve(this.addAlreadyProvidedTracks(myConstraints, new MediaStream()));
 
         } else {
           // getUserMedia must be called. AUDIO or VIDEO are requesting a new track
@@ -584,13 +547,13 @@ export class OpenVidu {
                       askForAudioStreamOnly(mediaStream, <MediaStreamConstraints>myConstraints.constraints);
                       return;
                     } else {
-                      resolve(mediaStream);
+                      return resolve(mediaStream);
                     }
                   })
                   .catch(error => {
                     let errorName: OpenViduErrorName = OpenViduErrorName.SCREEN_CAPTURE_DENIED;
                     const errorMessage = error.toString();
-                    reject(new OpenViduError(errorName, errorMessage));
+                    return reject(new OpenViduError(errorName, errorMessage));
                   });
                 return;
               } else {
@@ -609,7 +572,7 @@ export class OpenVidu {
                 askForAudioStreamOnly(mediaStream, <MediaStreamConstraints>myConstraints.constraints);
                 return;
               } else {
-                resolve(mediaStream);
+                return resolve(mediaStream);
               }
             })
             .catch(error => {
@@ -620,12 +583,10 @@ export class OpenVidu {
               } else {
                 errorName = OpenViduErrorName.SCREEN_CAPTURE_DENIED;
               }
-              reject(new OpenViduError(errorName, errorMessage));
+              return reject(new OpenViduError(errorName, errorMessage));
             });
         }
-      }).catch((error: OpenViduError) => {
-        reject(error);
-      });
+      }).catch((error: OpenViduError) => reject(error));
     });
   }
 
@@ -641,13 +602,7 @@ export class OpenVidu {
 
 
   /**
-   * Set OpenVidu advanced configuration options. Currently `configuration` is an object with the following optional properties (see [[OpenViduAdvancedConfiguration]] for more details):
-   * - `iceServers`: set custom STUN/TURN servers to be used by OpenVidu Browser
-   * - `screenShareChromeExtension`: url to a custom screen share extension for Chrome to be used instead of the default one, based on ours [https://github.com/OpenVidu/openvidu-screen-sharing-chrome-extension](https://github.com/OpenVidu/openvidu-screen-sharing-chrome-extension)
-   * - `publisherSpeakingEventsOptions`: custom configuration for the [[PublisherSpeakingEvent]] feature and the [StreamManagerEvent.streamAudioVolumeChange](/en/stable/api/openvidu-browser/classes/streammanagerevent.html) feature
-   * - `forceMediaReconnectionAfterNetworkDrop`: always force WebRTC renegotiation of all the streams of a client after a network loss and reconnection. This can help reducing frozen videos in low quality networks.
-   *
-   * Call this method to override previous values at any moment.
+   * Set OpenVidu advanced configuration options. `configuration` is an object of type [[OpenViduAdvancedConfiguration]]. Call this method to override previous values at any moment.
    */
   setAdvancedConfiguration(configuration: OpenViduAdvancedConfiguration): void {
     this.advancedConfiguration = configuration;
@@ -655,6 +610,62 @@ export class OpenVidu {
 
 
   /* Hidden methods */
+
+  /**
+   * @hidden
+   */
+  onOrientationChanged(handler): void {
+    (<any>window).addEventListener('orientationchange', handler);
+  }
+
+  /**
+   * @hidden
+   */
+  sendNewVideoDimensionsIfRequired(publisher: Publisher, reason: string, WAIT_INTERVAL: number, MAX_ATTEMPTS: number) {
+    let attempts = 0;
+    const oldWidth = publisher.stream.videoDimensions.width;
+    const oldHeight = publisher.stream.videoDimensions.height;
+
+    const repeatUntilChangeOrMaxAttempts: NodeJS.Timeout = setInterval(() => {
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        clearTimeout(repeatUntilChangeOrMaxAttempts);
+      }
+      publisher.getVideoDimensions(publisher.stream.getMediaStream()).then(newDimensions => {
+        if (newDimensions.width !== oldWidth || newDimensions.height !== oldHeight) {
+          clearTimeout(repeatUntilChangeOrMaxAttempts);
+          this.sendVideoDimensionsChangedEvent(publisher, reason, oldWidth, oldHeight, newDimensions.width, newDimensions.height);
+        }
+      });
+    }, WAIT_INTERVAL);
+  }
+
+  /**
+   * @hidden
+   */
+  sendVideoDimensionsChangedEvent(publisher: Publisher, reason: string, oldWidth: number, oldHeight: number, newWidth: number, newHeight: number) {
+    publisher.stream.videoDimensions = {
+      width: newWidth || 0,
+      height: newHeight || 0
+    };
+    this.sendRequest(
+      'streamPropertyChanged',
+      {
+        streamId: publisher.stream.streamId,
+        property: 'videoDimensions',
+        newValue: JSON.stringify(publisher.stream.videoDimensions),
+        reason
+      },
+      (error, response) => {
+        if (error) {
+          logger.error("Error sending 'streamPropertyChanged' event", error);
+        } else {
+          this.session.emitEvent('streamPropertyChanged', [new StreamPropertyChangedEvent(this.session, publisher.stream, 'videoDimensions', publisher.stream.videoDimensions, { width: oldWidth, height: oldHeight }, reason)]);
+          publisher.emitEvent('streamPropertyChanged', [new StreamPropertyChangedEvent(publisher, publisher.stream, 'videoDimensions', publisher.stream.videoDimensions, { width: oldWidth, height: oldHeight }, reason)]);
+          this.session.sendVideoData(publisher);
+        }
+      });
+  };
 
   /**
    * @hidden
@@ -684,7 +695,7 @@ export class OpenVidu {
       }
       if (myConstraints.constraints!.audio === false && myConstraints.constraints!.video === false) {
         // ERROR! audioSource and videoSource cannot be both false at the same time
-        reject(new OpenViduError(OpenViduErrorName.NO_INPUT_SOURCE_SET,
+        return reject(new OpenViduError(OpenViduErrorName.NO_INPUT_SOURCE_SET,
           "Properties 'audioSource' and 'videoSource' cannot be set to false or null at the same time"));
       }
 
@@ -736,7 +747,7 @@ export class OpenVidu {
       // CASE 4: deviceId or screen sharing
       this.configureDeviceIdOrScreensharing(myConstraints, publisherProperties, resolve, reject);
 
-      resolve(myConstraints);
+      return resolve(myConstraints);
     });
   }
 
@@ -756,6 +767,7 @@ export class OpenVidu {
       },
       rpc: {
         requestTimeout: 10000,
+        heartbeatRequestTimeout: 5000,
         participantJoined: this.session.onParticipantJoined.bind(this.session),
         participantPublished: this.session.onParticipantPublished.bind(this.session),
         participantUnpublished: this.session.onParticipantUnpublished.bind(this.session),
@@ -873,9 +885,16 @@ export class OpenVidu {
   /**
    * @hidden
    */
-  addAlreadyProvidedTracks(myConstraints: CustomMediaStreamConstraints, mediaStream: MediaStream) {
+  addAlreadyProvidedTracks(myConstraints: CustomMediaStreamConstraints, mediaStream: MediaStream, stream?: Stream) {
     if (!!myConstraints.videoTrack) {
       mediaStream.addTrack(myConstraints.videoTrack);
+      if (!!stream) {
+        if (!!myConstraints.constraints.video) {
+          stream.lastVideoTrackConstraints = myConstraints.constraints.video;
+        } else {
+          stream.lastVideoTrackConstraints = myConstraints.videoTrack.getConstraints();
+        }
+      }
     }
     if (!!myConstraints.audioTrack) {
       mediaStream.addTrack(myConstraints.audioTrack);
@@ -905,7 +924,7 @@ export class OpenVidu {
         if (!this.checkScreenSharingCapabilities()) {
           const error = new OpenViduError(OpenViduErrorName.SCREEN_SHARING_NOT_SUPPORTED, 'You can only screen share in desktop Chrome, Firefox, Opera, Safari (>=13.0), Edge (>= 80) or Electron. Detected client: ' + platform.getName() + ' ' + platform.getVersion());
           logger.error(error);
-          reject(error);
+          return reject(error);
         } else {
 
           if (platform.isElectron()) {
@@ -918,7 +937,7 @@ export class OpenVidu {
                 chromeMediaSourceId: electronScreenId
               }
             };
-            resolve(myConstraints);
+            return resolve(myConstraints);
 
           } else {
 
@@ -931,26 +950,26 @@ export class OpenVidu {
                   if (error === 'permission-denied' || error === 'PermissionDeniedError') {
                     const error = new OpenViduError(OpenViduErrorName.SCREEN_CAPTURE_DENIED, 'You must allow access to one window of your desktop');
                     logger.error(error);
-                    reject(error);
+                    return reject(error);
                   } else {
                     const extensionId = this.advancedConfiguration.screenShareChromeExtension!.split('/').pop()!!.trim();
                     screenSharing.getChromeExtensionStatus(extensionId, status => {
                       if (status === 'installed-disabled') {
                         const error = new OpenViduError(OpenViduErrorName.SCREEN_EXTENSION_DISABLED, 'You must enable the screen extension');
                         logger.error(error);
-                        reject(error);
+                        return reject(error);
                       }
                       if (status === 'not-installed') {
                         const error = new OpenViduError(OpenViduErrorName.SCREEN_EXTENSION_NOT_INSTALLED, (<string>this.advancedConfiguration.screenShareChromeExtension));
                         logger.error(error);
-                        reject(error);
+                        return reject(error);
                       }
                     });
                     return;
                   }
                 } else {
                   myConstraints.constraints!.video = screenConstraints;
-                  resolve(myConstraints);
+                  return resolve(myConstraints);
                 }
               });
               return;
@@ -958,7 +977,7 @@ export class OpenVidu {
 
               if (navigator.mediaDevices['getDisplayMedia']) {
                 // getDisplayMedia support (Chrome >= 72, Firefox >= 66, Safari >= 13)
-                resolve(myConstraints);
+                return resolve(myConstraints);
               } else {
                 // Default screen sharing extension for Chrome/Opera, or is Firefox < 66
                 const firefoxString = (platform.isFirefoxBrowser() || platform.isFirefoxMobileBrowser()) ? publisherProperties.videoSource : undefined;
@@ -970,24 +989,24 @@ export class OpenVidu {
                         'https://chrome.google.com/webstore/detail/openvidu-screensharing/lfcgfepafnobdloecchnfaclibenjold';
                       const err = new OpenViduError(OpenViduErrorName.SCREEN_EXTENSION_NOT_INSTALLED, extensionUrl);
                       logger.error(err);
-                      reject(err);
+                      return reject(err);
                     } else if (error === 'installed-disabled') {
                       const err = new OpenViduError(OpenViduErrorName.SCREEN_EXTENSION_DISABLED, 'You must enable the screen extension');
                       logger.error(err);
-                      reject(err);
+                      return reject(err);
                     } else if (error === 'permission-denied') {
                       const err = new OpenViduError(OpenViduErrorName.SCREEN_CAPTURE_DENIED, 'You must allow access to one window of your desktop');
                       logger.error(err);
-                      reject(err);
+                      return reject(err);
                     } else {
                       const err = new OpenViduError(OpenViduErrorName.GENERIC_ERROR, 'Unknown error when accessing screen share');
                       logger.error(err);
                       logger.error(error);
-                      reject(err);
+                      return reject(err);
                     }
                   } else {
                     myConstraints.constraints!.video = screenConstraints.video;
-                    resolve(myConstraints);
+                    return resolve(myConstraints);
                   }
                 });
                 return;
@@ -1030,25 +1049,81 @@ export class OpenVidu {
     }
   }
 
+  private reconnectWebsocketThroughRpcConnectMethod(rpcSessionId) {
+    // This RPC method allows checking:
+    // Single Master: if success, connection recovered
+    //                if error, no Master Node crashed and life will be -1. onLostConnection with reason networkDisconnect will be triggered
+    // Multi Master: if success, connection recovered
+    //               if error and Master Node crashed notification was already received, nothing must be done
+    //               if error and Master Node NOT crashed, sessionStatus method must be sent:
+    //                 if life is equal, networkDisconnect
+    //                 if life is greater, nodeCrashed
+    this.sendRequest('connect', { sessionId: rpcSessionId, reconnect: true }, (error, response) => {
+      if (!!error) {
+
+        if (this.isMasterNodeCrashed()) {
+
+          logger.warn('Master Node has crashed!');
+
+        } else {
+
+          logger.error(error);
+
+          const notifyLostConnection = (reason, errorMsg) => {
+            logger.warn(errorMsg);
+            this.session.onLostConnection(reason);
+            this.jsonRpcClient.close(4101, "Reconnection fault: " + errorMsg);
+          }
+
+          const rpcSessionStatus = () => {
+            if (this.life === -1) {
+              // Single Master
+              notifyLostConnection('networkDisconnect', 'WS successfully reconnected but the user was already evicted due to timeout');
+            } else {
+              // Multi Master
+              // This RPC method is only required to find out the reason of the disconnection:
+              // whether the client lost its network connection or a Master Node crashed
+              this.sendRequest('sessionStatus', { sessionId: this.session.sessionId }, (error, response) => {
+                if (error != null) {
+                  console.error('Error checking session status', error);
+                } else {
+                  if (this.life === response.life) {
+                    // If the life stored in the client matches the life stored in the server, it means that the client lost its network connection
+                    notifyLostConnection('networkDisconnect', 'WS successfully reconnected but the user was already evicted due to timeout');
+                  } else {
+                    // If the life stored in the client is below the life stored in the server, it means that the Master Node has crashed
+                    notifyLostConnection('nodeCrashed', 'WS successfully reconnected to OpenVidu Server but your Master Node crashed');
+                  }
+                }
+              });
+            }
+          };
+
+          if (error.code === 40007 && error.message === 'reconnection error') {
+            // Kurento error: invalid RPC sessionId. This means that the kurento-jsonrpc-server of openvidu-server where kurento-jsonrpc-client
+            // is trying to reconnect does not know about this sessionId. This can mean two things: 
+            // 1) openvidu-browser managed to reconnect after a while, but openvidu-server already evicted the user for not receiving ping.
+            // 2) openvidu-server process is a different one because of a node crash.
+            // Send a "sessionStatus" method to check the reason
+            console.error('Invalid RPC sessionId. Client network disconnection or Master Node crash');
+            rpcSessionStatus();
+          } else {
+            rpcSessionStatus();
+          }
+
+        }
+      } else {
+        this.jsonRpcClient.resetPing();
+        this.session.onRecoveredConnection();
+      }
+    });
+  }
+
   private reconnectedCallback(): void {
     logger.warn('Websocket reconnected');
     if (this.isRoomAvailable()) {
       if (!!this.session.connection) {
-        this.sendRequest('connect', { sessionId: this.session.connection.rpcSessionId }, (error, response) => {
-          if (!!error) {
-            if (this.isMasterNodeCrashed()) {
-              logger.warn('Master Node has crashed!');
-            } else {
-              logger.error(error);
-              logger.warn('Websocket was able to reconnect to OpenVidu Server, but your Connection was already destroyed due to timeout. You are no longer a participant of the Session and your media streams have been destroyed');
-              this.session.onLostConnection("networkDisconnect");
-              this.jsonRpcClient.close(4101, "Reconnection fault");
-            }
-          } else {
-            this.jsonRpcClient.resetPing();
-            this.session.onRecoveredConnection();
-          }
-        });
+        this.reconnectWebsocketThroughRpcConnectMethod(this.session.connection.rpcSessionId);
       } else {
         logger.warn('There was no previous connection when running reconnection callback');
         // Make Session object dispatch 'sessionDisconnected' event

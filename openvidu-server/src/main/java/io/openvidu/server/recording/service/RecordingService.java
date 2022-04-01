@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,9 +54,9 @@ public abstract class RecordingService {
 
 	public final static String RECORDING_ENTITY_FILE = ".recording.";
 	public final static String COMPOSED_RECORDING_EXTENSION = ".mp4";
+	public final static String COMPOSED_RECORDING_AUDIO_ONLY_EXTENSION = ".webm";
 	public final static String COMPOSED_THUMBNAIL_EXTENSION = ".jpg";
 	public final static String COMPOSED_INFO_FILE_EXTENSION = ".info";
-	public final static String INDIVIDUAL_RECORDING_EXTENSION = ".webm";
 	public final static String INDIVIDUAL_STREAM_METADATA_FILE = ".stream.";
 	public final static String INDIVIDUAL_RECORDING_COMPRESSED_EXTENSION = ".zip";
 

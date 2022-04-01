@@ -67,13 +67,33 @@ Resources:
               owner: "root"
               group: "root"
             "/usr/local/bin/installOpenviduServerPRO.sh":
-              content: !Sub |
+              content: |
                 #!/bin/bash
                 set -eu -o pipefail
 
                 # Install openvidu-pro
                 cd /opt
                 curl https://s3-eu-west-1.amazonaws.com/aws.openvidu.io/install_openvidu_pro_OPENVIDU_VERSION.sh | bash
+
+                if [[ USE_MASTER_DOCKER_IMAGE == "true" ]]; then
+                  pushd openvidu
+                  # docker-compose.yml replace with master version
+                  IMAGES="$(cat docker-compose.yml | grep 'image: openvidu/' | cut -d':' -f2 | sed -e 's/^[[:space:]]*//')"
+                  # Ignore elasticsearch image to change tag
+                  IMAGES=$(echo "$IMAGES" | grep -v openvidu/openvidu-elasticsearch)
+                  for IMG in $IMAGES
+                  do
+                    sed -i "s|$IMG.*|$IMG:master|g" docker-compose.yml
+                  done
+
+                  # docker-compose.override.yml replace with master version
+                  IMAGES="$(cat docker-compose.override.yml | grep 'image: openvidu/' | cut -d':' -f2 | sed -e 's/^[[:space:]]*//')"
+                  for IMG in $IMAGES
+                  do
+                    sed -i "s|$IMG.*|$IMG:master|g" docker-compose.override.yml
+                  done
+                  popd
+                fi
 
                 # Define Installation Type
                 sed -i "s/Installation Mode: On Premises/Installation Mode: Cloud Formation/" /opt/openvidu/docker-compose.yml
@@ -116,9 +136,9 @@ Resources:
             #!/bin/bash -x
             set -eu -o pipefail
             apt-get update && apt-get install -y \
-                python-pip \
+                python-pip python3-pip \
                 ec2-instance-connect
-            pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+            pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
 
             cfn-init --region ${AWS::Region} --stack ${AWS::StackId} --resource OpenviduServerPro
 

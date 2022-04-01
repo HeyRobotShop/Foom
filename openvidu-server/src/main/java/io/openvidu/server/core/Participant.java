@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -315,6 +315,7 @@ public class Participant {
 		json.addProperty("createdAt", this.token.getCreatedAt());
 		json.addProperty("activeAt", this.activeAt);
 		json.addProperty("location", this.location != null ? this.location.toString() : "unknown");
+		json.addProperty("ip", this.location != null ? this.location.getIp() : null);
 		json.addProperty("platform", this.platform);
 		if (this.token.getToken() != null) {
 			json.addProperty("token", this.token.getToken());

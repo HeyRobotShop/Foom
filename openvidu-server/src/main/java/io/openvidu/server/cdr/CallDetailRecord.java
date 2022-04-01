@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import io.openvidu.server.kurento.endpoint.KmsEvent;
 import io.openvidu.server.recording.Recording;
 import io.openvidu.server.recording.service.RecordingManager;
 import io.openvidu.server.summary.SessionSummary;
-import io.openvidu.server.webhook.CDRLoggerWebhook;
 
 /**
  * CDR logger to register all information of a Session. Enabled by property
@@ -60,7 +59,6 @@ public class CallDetailRecord {
 	private Map<String, CDREventParticipant> participants = new ConcurrentHashMap<>();
 	private Map<String, CDREventWebrtcConnection> publications = new ConcurrentHashMap<>();
 	private Map<String, Set<CDREventWebrtcConnection>> subscriptions = new ConcurrentHashMap<>();
-	private Map<String, CDREventRecording> recordings = new ConcurrentHashMap<>();
 
 	public CallDetailRecord(Collection<CDRLogger> loggers) {
 		this.loggers = loggers;
@@ -76,10 +74,11 @@ public class CallDetailRecord {
 		this.log(e);
 	}
 
-	public void recordSessionDestroyed(String sessionId, EndReason reason) {
+	public void recordSessionDestroyed(Session session, EndReason reason) {
+		String sessionId = session.getSessionId();
 		CDREventSession e = this.sessions.remove(sessionId);
 		if (e != null) {
-			CDREventSession eventSessionEnd = new CDREventSession(e, RecordingManager.finalReason(reason),
+			CDREventSession eventSessionEnd = new CDREventSession(e, session, RecordingManager.finalReason(reason),
 					System.currentTimeMillis());
 			this.log(eventSessionEnd);
 
@@ -158,25 +157,15 @@ public class CallDetailRecord {
 		}
 	}
 
-	public void recordRecordingStarted(Recording recording) {
-		CDREventRecording recordingStartedEvent = new CDREventRecording(recording);
-		this.recordings.putIfAbsent(recording.getId(), recordingStartedEvent);
-		this.log(recordingStartedEvent);
-	}
-
-	public void recordRecordingStopped(Recording recording, EndReason reason, long timestamp) {
-		CDREventRecording recordingStartedEvent = this.recordings.remove(recording.getId());
-		CDREventRecording recordingStoppedEvent = new CDREventRecording(recordingStartedEvent, recording,
-				RecordingManager.finalReason(reason), timestamp);
-		this.log(recordingStoppedEvent);
-
-		// Summary: update ended recording
-		sessionManager.getAccumulatedRecordings(recording.getSessionId()).add(recordingStoppedEvent);
-	}
-
 	public void recordRecordingStatusChanged(Recording recording, EndReason finalReason, long timestamp,
 			Status status) {
-		this.log(new CDREventRecordingStatus(recording, recording.getCreatedAt(), finalReason, timestamp, status));
+		CDREventRecordingStatusChanged event = new CDREventRecordingStatusChanged(recording, recording.getCreatedAt(),
+				finalReason, timestamp, status);
+		if (Status.stopped.equals(status)) {
+			// Summary: update ended recording
+			sessionManager.accumulateNewRecording(event);
+		}
+		this.log(event);
 	}
 
 	public void recordFilterEventDispatched(String sessionId, String uniqueSessionId, String connectionId,
@@ -192,16 +181,9 @@ public class CallDetailRecord {
 		this.log(new CDREventSignal(sessionId, uniqueSessionId, from, to, type, data));
 	}
 
-	protected void log(CDREvent event) {
+	public void log(CDREvent event) {
 		this.loggers.forEach(logger -> {
-
-			// TEMP FIX: AVOID SENDING recordingStarted AND recordingStopped EVENTS TO
-			// WEBHOOK. ONLY recordingStatusChanged
-			if (!(logger instanceof CDRLoggerWebhook && (CDREventName.recordingStarted.equals(event.getEventName())
-					|| CDREventName.recordingStopped.equals(event.getEventName())))) {
-				logger.log(event);
-			}
-
+			logger.log(event);
 		});
 	}
 

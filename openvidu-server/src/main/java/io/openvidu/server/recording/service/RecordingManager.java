@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -128,8 +128,6 @@ public class RecordingManager {
 	private ScheduledExecutorService automaticRecordingStopExecutor = Executors
 			.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
 
-	public static final String IMAGE_NAME = "openvidu/openvidu-recording";
-
 	private static final List<EndReason> LAST_PARTICIPANT_LEFT_REASONS = Arrays
 			.asList(new EndReason[] { EndReason.disconnect, EndReason.forceDisconnectByUser,
 					EndReason.forceDisconnectByServer, EndReason.networkDisconnect });
@@ -159,7 +157,7 @@ public class RecordingManager {
 							+ "\" set with system property \"OPENVIDU_RECORDING_CUSTOM_LAYOUT\"";
 				}
 				log.error(finalErrorMessage + ". Shutting down OpenVidu Server");
-				System.exit(1);
+				Runtime.getRuntime().halt(1);
 			}
 		} else {
 			log.info("OpenVidu recording service is disabled");
@@ -187,7 +185,7 @@ public class RecordingManager {
 		}
 
 		// Clean any stranded openvidu/openvidu-recording container on startup
-		dockMng.cleanStrandedContainers(RecordingManager.IMAGE_NAME);
+		dockMng.cleanStrandedContainers(openviduConfig.getOpenviduRecordingImageRepo());
 	}
 
 	public void checkRecordingRequirements(String openviduRecordingPath, String openviduRecordingCustomLayout)
@@ -223,7 +221,8 @@ public class RecordingManager {
 		log.info("Recording module required: Downloading openvidu/openvidu-recording:"
 				+ openviduConfig.getOpenViduRecordingVersion() + " Docker image (350MB aprox)");
 
-		if (dockMng.dockerImageExistsLocally(IMAGE_NAME + ":" + openviduConfig.getOpenViduRecordingVersion())) {
+		if (dockMng.dockerImageExistsLocally(
+				openviduConfig.getOpenviduRecordingImageRepo() + ":" + openviduConfig.getOpenViduRecordingVersion())) {
 			log.info("Docker image already exists locally");
 		} else {
 			Thread t = new Thread(() -> {
@@ -241,9 +240,10 @@ public class RecordingManager {
 			});
 			t.start();
 			try {
-				dockMng.downloadDockerImage(IMAGE_NAME + ":" + openviduConfig.getOpenViduRecordingVersion(), 600);
+				dockMng.downloadDockerImage(openviduConfig.getOpenviduRecordingImageRepo() + ":"
+						+ openviduConfig.getOpenViduRecordingVersion(), 600);
 			} catch (Exception e) {
-				log.error("Error downloading docker image {}:{}", IMAGE_NAME,
+				log.error("Error downloading docker image {}:{}", openviduConfig.getOpenviduRecordingImageRepo(),
 						openviduConfig.getOpenViduRecordingVersion());
 			}
 			t.interrupt();
@@ -304,8 +304,6 @@ public class RecordingManager {
 
 							this.cdr.recordRecordingStatusChanged(recording, null, recording.getCreatedAt(),
 									Status.started);
-							// TODO: remove deprecated "recordingStarted" event
-							this.cdr.recordRecordingStarted(recording);
 
 							if (!(OutputMode.COMPOSED.equals(properties.outputMode()) && properties.hasVideo())) {
 								// Directly send recording started notification for all cases except for
@@ -364,11 +362,8 @@ public class RecordingManager {
 		}
 
 		((RecordingService) singleStreamRecordingService).sealRecordingMetadataFileAsStopped(recording);
-
 		final long timestamp = System.currentTimeMillis();
 		this.cdr.recordRecordingStatusChanged(recording, reason, timestamp, Status.stopped);
-		// TODO: remove deprecated "recordingStopped" event
-		this.cdr.recordRecordingStopped(recording, reason, timestamp);
 
 		switch (recording.getOutputMode()) {
 		case COMPOSED:
@@ -386,8 +381,12 @@ public class RecordingManager {
 	}
 
 	public Recording forceStopRecording(Session session, EndReason reason, Long kmsDisconnectionTime) {
-		Recording recording;
-		recording = this.sessionsRecordings.get(session.getSessionId());
+		Recording recording = this.sessionsRecordings.get(session.getSessionId());
+
+		((RecordingService) singleStreamRecordingService).sealRecordingMetadataFileAsStopped(recording);
+		final long timestamp = System.currentTimeMillis();
+		this.cdr.recordRecordingStatusChanged(recording, reason, timestamp, Status.stopped);
+
 		switch (recording.getOutputMode()) {
 		case COMPOSED:
 			recording = this.composedRecordingService.stopRecording(session, recording, reason, kmsDisconnectionTime);
@@ -491,6 +490,18 @@ public class RecordingManager {
 	public boolean sessionIsBeingRecorded(String sessionId) {
 		return (this.sessionsRecordings.get(sessionId) != null
 				|| this.sessionsRecordingsStarting.get(sessionId) != null);
+	}
+
+	public boolean sessionIsBeingRecordedIndividual(String sessionId) {
+		if (!sessionIsBeingRecorded(sessionId)) {
+			return false;
+		} else {
+			Recording recording = this.sessionsRecordings.get(sessionId);
+			if (recording == null) {
+				recording = this.sessionsRecordingsStarting.get(sessionId);
+			}
+			return OutputMode.INDIVIDUAL.equals(recording.getOutputMode());
+		}
 	}
 
 	public Recording getStartedRecording(String recordingId) {
@@ -736,7 +747,7 @@ public class RecordingManager {
 		}
 	}
 
-	private void checkRecordingPaths(String openviduRecordingPath, String openviduRecordingCustomLayout)
+	protected void checkRecordingPaths(String openviduRecordingPath, String openviduRecordingCustomLayout)
 			throws OpenViduException {
 		log.info("Initializing recording paths");
 
@@ -764,7 +775,7 @@ public class RecordingManager {
 
 		final String testFolderPath = openviduRecordingPath + "/TEST_RECORDING_PATH_" + System.currentTimeMillis();
 		final String testFilePath = testFolderPath + "/TEST_RECORDING_PATH"
-				+ RecordingService.INDIVIDUAL_RECORDING_EXTENSION;
+				+ openviduConfig.getMediaServer().getRecordingFileExtension();
 
 		// Check Kurento Media Server write permissions in recording path
 		if (this.kmsManager.getKmss().isEmpty()) {

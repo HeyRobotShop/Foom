@@ -151,12 +151,18 @@
 			"name": "OPENVIDU_STREAMS_FORCED_VIDEO_CODEC",
 			"type": "java.lang.String",
 			"description": "Defines which video codec is being forced to be used in the browser/client",
-			"defaultValue": "VP8"
+			"defaultValue": "MEDIA_SERVER_PREFERRED"
 		},
 		{
 			"name": "OPENVIDU_STREAMS_ALLOW_TRANSCODING",
 			"type": "java.lang.Boolean",
 			"description": "Defines if transcoding is allowed or not when OPENVIDU_STREAMS_FORCED_VIDEO_CODEC is not a compatible codec with the browser/client.",
+			"defaultValue": false
+		},
+		{
+			"name": "OPENVIDU_WEBRTC_SIMULCAST",
+			"type": "java.lang.Boolean",
+			"description": "Use Simulcast video on WebRTC Publishers.",
 			"defaultValue": false
 		},
 		{
@@ -204,6 +210,16 @@
 			"name": "CERTIFICATE_TYPE",
 			"type": "java.lang.String",
 			"description": "Which kind of certificate shall be used by OpenVidu in production mode [selfsigned,letsencrypt,owncert]"
+		},
+		{
+			"name": "MEDIA_NODES_PUBLIC_IPS",
+			"type": "java.lang.String",
+			"description": "Additional IP to be returned for each media node in ICE candidates. The format consists on a list of pairs with private ips and public ips [<private-ip>:<public_ip>:...]"
+		},
+		{
+			"name": "COTURN_INTERNAL_RELAY",
+			"type": "java.lang.String",
+			"description": "If true, coturn is returning the private IP on relayed candidates. This can be useful to know which candidates must be sent when MEDIA_NODES_PUBLIC_IPS is defined"
 		},
 		{
 			"name": "jsonRpcClientWebSocket.reconnectionDelay",

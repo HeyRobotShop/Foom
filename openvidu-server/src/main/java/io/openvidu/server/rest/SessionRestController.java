@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,11 @@ import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.RandomStringUtils;
@@ -53,6 +55,7 @@ import io.openvidu.client.OpenViduException.Code;
 import io.openvidu.client.internal.ProtocolElements;
 import io.openvidu.java.client.ConnectionProperties;
 import io.openvidu.java.client.ConnectionType;
+import io.openvidu.java.client.IceServerProperties;
 import io.openvidu.java.client.KurentoOptions;
 import io.openvidu.java.client.MediaMode;
 import io.openvidu.java.client.OpenViduRole;
@@ -65,7 +68,6 @@ import io.openvidu.java.client.VideoCodec;
 import io.openvidu.server.config.OpenviduConfig;
 import io.openvidu.server.core.EndReason;
 import io.openvidu.server.core.IdentifierPrefixes;
-import io.openvidu.server.core.MediaServer;
 import io.openvidu.server.core.Participant;
 import io.openvidu.server.core.Session;
 import io.openvidu.server.core.SessionManager;
@@ -110,22 +112,67 @@ public class SessionRestController {
 		}
 
 		String sessionId;
-		if (sessionProperties.customSessionId() != null && !sessionProperties.customSessionId().isEmpty()) {
-			if (sessionManager.getSessionWithNotActive(sessionProperties.customSessionId()) != null) {
-				return new ResponseEntity<>(HttpStatus.CONFLICT);
+		Lock sessionLock = null;
+
+		try {
+			if (sessionProperties.customSessionId() != null && !sessionProperties.customSessionId().isEmpty()) {
+				// Session has custom session id
+				sessionId = sessionProperties.customSessionId();
+				Session session = sessionManager.getSessionWithNotActive(sessionProperties.customSessionId());
+				if (session != null) {
+					// The session appears to already exist
+					if (session.closingLock.readLock().tryLock()) {
+						// The session indeed exists and is not being closed
+						try {
+							log.warn("Session {} is already created", sessionProperties.customSessionId());
+							return new ResponseEntity<>(HttpStatus.CONFLICT);
+						} finally {
+							session.closingLock.readLock().unlock();
+						}
+					} else {
+						// The session exists but is being closed
+						log.warn("Session {} is in the process of closing while calling POST {}/sessions", sessionId,
+								RequestMappings.API);
+						try {
+							if (session.closingLock.writeLock().tryLock(15, TimeUnit.SECONDS)) {
+								if (sessionManager
+										.getSessionWithNotActive(sessionProperties.customSessionId()) != null) {
+									// Other thread took the lock before and rebuilt the closing session
+									session.closingLock.writeLock().unlock();
+									return new ResponseEntity<>(HttpStatus.CONFLICT);
+								} else {
+									// This thread will rebuild the closing session
+									sessionLock = session.closingLock.writeLock();
+								}
+							} else {
+								log.error("Timeout waiting for Session {} closing lock to be available", sessionId);
+							}
+						} catch (InterruptedException e) {
+							log.error("InterruptedException while waiting for Session {} closing lock to be available",
+									sessionId);
+						}
+
+					}
+				}
+			} else {
+				sessionId = IdentifierPrefixes.SESSION_ID + RandomStringUtils.randomAlphabetic(1).toUpperCase()
+						+ RandomStringUtils.randomAlphanumeric(9);
 			}
-			sessionId = sessionProperties.customSessionId();
-		} else {
-			sessionId = IdentifierPrefixes.SESSION_ID + RandomStringUtils.randomAlphabetic(1).toUpperCase()
-					+ RandomStringUtils.randomAlphanumeric(9);
+
+			Session sessionNotActive = sessionManager.storeSessionNotActive(sessionId, sessionProperties);
+			if (sessionNotActive == null) {
+				return new ResponseEntity<>(HttpStatus.CONFLICT);
+			} else {
+				log.info("New session {} created {}", sessionId, this.sessionManager.getSessionsWithNotActive().stream()
+						.map(Session::getSessionId).collect(Collectors.toList()).toString());
+				return new ResponseEntity<>(sessionNotActive.toJson(false, false).toString(),
+						RestUtils.getResponseHeaders(), HttpStatus.OK);
+			}
+		} finally {
+			if (sessionLock != null) {
+				sessionLock.unlock();
+			}
 		}
-
-		Session sessionNotActive = sessionManager.storeSessionNotActive(sessionId, sessionProperties);
-		log.info("New session {} created {}", sessionId, this.sessionManager.getSessionsWithNotActive().stream()
-				.map(Session::getSessionId).collect(Collectors.toList()).toString());
-
-		return new ResponseEntity<>(sessionNotActive.toJson(false, false).toString(), RestUtils.getResponseHeaders(),
-				HttpStatus.OK);
 	}
 
 	@RequestMapping(value = "/sessions/{sessionId}", method = RequestMethod.GET)
@@ -137,8 +184,17 @@ public class SessionRestController {
 
 		Session session = this.sessionManager.getSession(sessionId);
 		if (session != null) {
-			JsonObject response = session.toJson(pendingConnections, webRtcStats);
-			return new ResponseEntity<>(response.toString(), RestUtils.getResponseHeaders(), HttpStatus.OK);
+			try {
+				JsonObject response = session.toJson(pendingConnections, webRtcStats);
+				return new ResponseEntity<>(response.toString(), RestUtils.getResponseHeaders(), HttpStatus.OK);
+			} catch (OpenViduException e) {
+				if (e.getCodeValue() == Code.ROOM_CLOSED_ERROR_CODE.getValue()) {
+					log.warn("Session closed while calling GET {}/sessions/{}", RequestMappings.API, sessionId);
+					return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+				} else {
+					throw e;
+				}
+			}
 		} else {
 			Session sessionNotActive = this.sessionManager.getSessionNotActive(sessionId);
 			if (sessionNotActive != null) {
@@ -161,10 +217,16 @@ public class SessionRestController {
 		JsonObject json = new JsonObject();
 		JsonArray jsonArray = new JsonArray();
 		sessions.forEach(session -> {
-			JsonObject sessionJson = session.toJson(pendingConnections, webRtcStats);
-			jsonArray.add(sessionJson);
+			try {
+				JsonObject sessionJson = session.toJson(pendingConnections, webRtcStats);
+				jsonArray.add(sessionJson);
+			} catch (OpenViduException e) {
+				if (e.getCodeValue() != Code.ROOM_CLOSED_ERROR_CODE.getValue()) {
+					throw e;
+				}
+			}
 		});
-		json.addProperty("numberOfElements", sessions.size());
+		json.addProperty("numberOfElements", jsonArray.size());
 		json.add("content", jsonArray);
 		return new ResponseEntity<>(json.toString(), RestUtils.getResponseHeaders(), HttpStatus.OK);
 	}
@@ -658,7 +720,10 @@ public class SessionRestController {
 			try {
 				Token token = sessionManager.newToken(session, connectionProperties.getRole(),
 						connectionProperties.getData(), connectionProperties.record(),
-						connectionProperties.getKurentoOptions());
+						connectionProperties.getKurentoOptions(), connectionProperties.getCustomIceServers());
+
+				log.info("Generated token {}", token.getToken());
+
 				return new ResponseEntity<>(token.toJsonAsParticipant().toString(), RestUtils.getResponseHeaders(),
 						HttpStatus.OK);
 			} catch (Exception e) {
@@ -722,18 +787,29 @@ public class SessionRestController {
 
 		if (params != null) {
 
+			// Obtain primitive values from the params map
 			String mediaModeString;
 			String recordingModeString;
-			String forcedVideoCodec;
+			String forcedVideoCodecStr;
 			Boolean allowTranscoding;
 			try {
 				mediaModeString = (String) params.get("mediaMode");
 				recordingModeString = (String) params.get("recordingMode");
 				customSessionId = (String) params.get("customSessionId");
-				forcedVideoCodec = (String) params.get("forcedVideoCodec");
+				forcedVideoCodecStr = (String) params.get("forcedVideoCodec");
 				allowTranscoding = (Boolean) params.get("allowTranscoding");
 			} catch (ClassCastException e) {
 				throw new Exception("Type error in some parameter: " + e.getMessage());
+			}
+
+			// Parse obtained values into actual types
+			VideoCodec forcedVideoCodec = null;
+			try {
+				forcedVideoCodec = VideoCodec.valueOf(forcedVideoCodecStr);
+			} catch (NullPointerException e) {
+				// Not an error: "forcedVideoCodec" was not provided in params.
+			} catch (IllegalArgumentException e) {
+				throw new Exception("Invalid value for parameter 'forcedVideoCodec': " + e.getMessage());
 			}
 
 			try {
@@ -757,16 +833,25 @@ public class SessionRestController {
 					}
 					builder = builder.customSessionId(customSessionId);
 				}
-				// forcedVideoCodec to NONE if mediasoup
-				if (MediaServer.mediasoup.equals(openviduConfig.getMediaServer())) {
-					builder = builder.forcedVideoCodec(VideoCodec.NONE);
-				} else {
-					if (forcedVideoCodec != null) {
-						builder = builder.forcedVideoCodec(VideoCodec.valueOf(forcedVideoCodec));
-					} else {
-						builder = builder.forcedVideoCodec(openviduConfig.getOpenviduForcedCodec());
-					}
+
+				if (forcedVideoCodec == null) {
+					forcedVideoCodec = openviduConfig.getOpenviduForcedCodec();
 				}
+				builder = builder.forcedVideoCodec(forcedVideoCodec);
+				if (forcedVideoCodec == VideoCodec.MEDIA_SERVER_PREFERRED) {
+					switch (openviduConfig.getMediaServer()) {
+					case mediasoup:
+						builder = builder.forcedVideoCodecResolved(VideoCodec.NONE);
+						break;
+					case kurento:
+					default:
+						builder = builder.forcedVideoCodecResolved(VideoCodec.VP8);
+						break;
+					}
+				} else {
+					builder = builder.forcedVideoCodecResolved(forcedVideoCodec);
+				}
+
 				if (allowTranscoding != null) {
 					builder = builder.allowTranscoding(allowTranscoding);
 				} else {
@@ -887,6 +972,47 @@ public class SessionRestController {
 					kurentoOptions = builder2.build();
 				} catch (Exception e) {
 					throw new Exception("Type error in some parameter of 'kurentoOptions': " + e.getMessage());
+				}
+			}
+
+			// Custom Ice Servers
+			JsonArray customIceServersJsonArray = null;
+			if (params.get("customIceServers") != null) {
+				try {
+					customIceServersJsonArray = new Gson().toJsonTree(params.get("customIceServers"), List.class)
+							.getAsJsonArray();
+				} catch (Exception e) {
+					throw new Exception("Error in parameter 'customIceServersJson'. It is not a valid JSON object");
+				}
+			}
+			if (customIceServersJsonArray != null) {
+				try {
+					for (int i = 0; i < customIceServersJsonArray.size(); i++) {
+						JsonObject customIceServerJson = customIceServersJsonArray.get(i).getAsJsonObject();
+						IceServerProperties.Builder iceServerPropertiesBuilder = new IceServerProperties.Builder();
+						iceServerPropertiesBuilder.url(customIceServerJson.get("url").getAsString());
+						if (customIceServerJson.has("staticAuthSecret")) {
+							iceServerPropertiesBuilder
+									.staticAuthSecret(customIceServerJson.get("staticAuthSecret").getAsString());
+						}
+						if (customIceServerJson.has("username")) {
+							iceServerPropertiesBuilder.username(customIceServerJson.get("username").getAsString());
+						}
+						if (customIceServerJson.has("credential")) {
+							iceServerPropertiesBuilder.credential(customIceServerJson.get("credential").getAsString());
+						}
+						IceServerProperties iceServerProperties = iceServerPropertiesBuilder.build();
+						builder.addCustomIceServer(iceServerProperties);
+					}
+				} catch (Exception e) {
+					throw new Exception("Type error in some parameter of 'customIceServers': " + e.getMessage());
+				}
+			} else if (!openviduConfig.getWebrtcIceServersBuilders().isEmpty()) {
+				// If not defined in connection, check if defined in openvidu config
+				for (IceServerProperties.Builder iceServerPropertiesBuilder : openviduConfig
+						.getWebrtcIceServersBuilders()) {
+					IceServerProperties.Builder configIceBuilder = iceServerPropertiesBuilder.clone();
+					builder.addCustomIceServer(configIceBuilder.build());
 				}
 			}
 

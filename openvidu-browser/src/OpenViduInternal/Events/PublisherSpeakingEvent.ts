@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,9 @@ import { StreamManager } from '../../OpenVidu/StreamManager';
 
 
 /**
- * Defines the following events:
- * - `publisherStartSpeaking`: dispatched by [[Session]] and [[StreamManager]] when a user has started speaking
- * - `publisherStopSpeaking`: dispatched by [[Session]] and [[StreamManager]] when a user has stopped speaking
- *
- * More information:
- * - This events will only be triggered for **streams that have audio tracks** ([[Stream.hasAudio]] must be true)
- * - You can further configure how the events are dispatched by setting property `publisherSpeakingEventsOptions` in the call of [[OpenVidu.setAdvancedConfiguration]]
+ * Triggered by:
+ * - `publisherStartSpeaking` (available for [Session](/en/stable/api/openvidu-browser/interfaces/SessionEventMap.html#publisherStartSpeaking) and [StreamManager](/en/stable/api/openvidu-browser/interfaces/StreamManagerEventMap.html#publisherStartSpeaking) objects)
+ * - `publisherStopSpeaking` (available for [Session](/en/stable/api/openvidu-browser/interfaces/SessionEventMap.html#publisherStopSpeaking) and [StreamManager](/en/stable/api/openvidu-browser/interfaces/StreamManagerEventMap.html#publisherStopSpeaking) objects)
  */
 export class PublisherSpeakingEvent extends Event {
 

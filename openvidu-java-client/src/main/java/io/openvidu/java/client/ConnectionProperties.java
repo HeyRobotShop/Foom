@@ -1,7 +1,11 @@
 package io.openvidu.java.client;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * See
@@ -22,8 +26,11 @@ public class ConnectionProperties {
 	private Boolean onlyPlayWithSubscribers;
 	private Integer networkCache;
 
+	// External Turn Service
+	private List<IceServerProperties> customIceServers;
+
 	/**
-	 * 
+	 *
 	 * Builder for {@link io.openvidu.java.client.ConnectionProperties}
 	 *
 	 */
@@ -36,18 +43,21 @@ public class ConnectionProperties {
 		// WEBRTC
 		private OpenViduRole role;
 		private KurentoOptions kurentoOptions;
+		private List<IceServerProperties> customIceServers = new ArrayList<>();
 		// IPCAM
 		private String rtspUri;
 		private Boolean adaptativeBitrate;
 		private Boolean onlyPlayWithSubscribers;
 		private Integer networkCache;
 
+
 		/**
 		 * Builder for {@link io.openvidu.java.client.ConnectionProperties}.
 		 */
 		public ConnectionProperties build() {
 			return new ConnectionProperties(this.type, this.data, this.record, this.role, this.kurentoOptions,
-					this.rtspUri, this.adaptativeBitrate, this.onlyPlayWithSubscribers, this.networkCache);
+					this.rtspUri, this.adaptativeBitrate, this.onlyPlayWithSubscribers, this.networkCache,
+					this.customIceServers);
 		}
 
 		/**
@@ -115,9 +125,10 @@ public class ConnectionProperties {
 
 		/**
 		 * Call this method to flag the streams published by this Connection to be
-		 * recorded or not. This only affects <a href=
-		 * "https://docs.openvidu.io/en/stable/advanced-features/recording#selecting-streams-to-be-recorded"
-		 * target="_blank">INDIVIDUAL recording</a>. If not set by default will be true.
+		 * recorded or not. This only affects
+		 * <a href="https://docs.openvidu.io/en/stable/advanced-features/recording/#individual-recording-selection">
+		 *   INDIVIDUAL recording
+		 * </a>. If not set, by default will be true.
 		 */
 		public Builder record(boolean record) {
 			this.record = record;
@@ -128,7 +139,7 @@ public class ConnectionProperties {
 		 * Call this method to set the role assigned to this Connection. If not set by
 		 * default will be {@link io.openvidu.java.client.OpenViduRole#PUBLISHER
 		 * PUBLISHER}.
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -142,7 +153,7 @@ public class ConnectionProperties {
 		/**
 		 * Call this method to set a {@link io.openvidu.java.client.KurentoOptions}
 		 * object for this Connection.
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -156,7 +167,7 @@ public class ConnectionProperties {
 		/**
 		 * Call this method to set the RTSP URI of an IP camera. For example:
 		 * <code>rtsp://your.camera.ip:7777/path</code>
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -174,7 +185,7 @@ public class ConnectionProperties {
 		 * if transcoding might be necessary, setting this property to false <strong>may
 		 * result in media connections not being established</strong>. Default to
 		 * <code>true</code>.
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -192,7 +203,7 @@ public class ConnectionProperties {
 		 * camera's video. On the counterpart, first user subscribing to the IP camera
 		 * stream will take a little longer to receive its video. Default to
 		 * <code>true</code>.
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -209,7 +220,7 @@ public class ConnectionProperties {
 		 * signal will have, but more problematic will be in unstable networks. Use
 		 * short buffers only if there is a quality connection between the IP camera and
 		 * OpenVidu Server. Default to <code>2000</code>.
-		 * 
+		 *
 		 * <br>
 		 * <br>
 		 * <strong>Only for
@@ -219,11 +230,42 @@ public class ConnectionProperties {
 			this.networkCache = networkCache;
 			return this;
 		}
+
+		/**
+		 * On certain type of networks, clients using default OpenVidu STUN/TURN server can not be reached it because
+		 * firewall rules and network topologies at the client side. This method allows you to configure your
+		 * own ICE Server for specific connections if you need it. This is usually not necessary, only it is usefull for
+		 * OpenVidu users behind firewalls which allows traffic from/to specific ports which may need a custom
+		 * ICE Server configuration
+		 *
+		 * Add an ICE Server if in your use case you need this connection to use your own ICE Server deployment.
+		 * When the user uses this connection, it will use the specified ICE Servers defined here.
+		 *
+		 * The level of precedence for ICE Server configuration on every OpenVidu connection is:
+	 	 * <ol>
+		 * <li>Configured ICE Server using Openvidu.setAdvancedCofiguration() at openvidu-browser.</li>
+		 * <li>Configured ICE server at
+		 * {@link io.openvidu.java.client.ConnectionProperties#customIceServers ConnectionProperties.customIceServers}</li>
+		 * <li>Configured ICE Server at global configuration parameter: OPENVIDU_WEBRTC_ICE_SERVERS</li>
+		 * <li>Default deployed Coturn within OpenVidu deployment</li>
+		 * </ol>
+		 * <br>
+		 * If no value is found at level 1, level 2 will be used, and so on until level 4.
+		 * <br>
+		 * This method is equivalent to level 2 of precedence.
+		 * <br><br>
+		 * <strong>Only for
+		 * {@link io.openvidu.java.client.ConnectionType#WEBRTC}</strong>
+		 */
+		public Builder addCustomIceServer(IceServerProperties iceServerProperties) {
+			this.customIceServers.add(iceServerProperties);
+			return this;
+		}
 	}
 
 	ConnectionProperties(ConnectionType type, String data, Boolean record, OpenViduRole role,
 			KurentoOptions kurentoOptions, String rtspUri, Boolean adaptativeBitrate, Boolean onlyPlayWithSubscribers,
-			Integer networkCache) {
+			Integer networkCache, List<IceServerProperties> customIceServers) {
 		this.type = type;
 		this.data = data;
 		this.record = record;
@@ -233,6 +275,7 @@ public class ConnectionProperties {
 		this.adaptativeBitrate = adaptativeBitrate;
 		this.onlyPlayWithSubscribers = onlyPlayWithSubscribers;
 		this.networkCache = networkCache;
+		this.customIceServers = customIceServers;
 	}
 
 	/**
@@ -250,14 +293,15 @@ public class ConnectionProperties {
 	}
 
 	/**
-	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank"
+	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/"
 	 * style="display: inline-block; background-color: rgb(0, 136, 170); color:
 	 * white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius:
 	 * 3px; font-size: 13px; line-height:21px; font-family: Montserrat,
 	 * sans-serif">PRO</a> Whether the streams published by this Connection will be
-	 * recorded or not. This only affects <a href=
-	 * "https://docs.openvidu.io/en/stable/advanced-features/recording#selecting-streams-to-be-recorded"
-	 * target="_blank">INDIVIDUAL recording</a>.
+	 * recorded or not. This only affects
+	 * <a href="https://docs.openvidu.io/en/stable/advanced-features/recording/#individual-recording-selection">
+	 *   INDIVIDUAL recording
+	 * </a>.
 	 */
 	public Boolean record() {
 		return this.record;
@@ -265,7 +309,7 @@ public class ConnectionProperties {
 
 	/**
 	 * Returns the role assigned to this Connection.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -277,7 +321,7 @@ public class ConnectionProperties {
 
 	/**
 	 * Returns the KurentoOptions assigned to this Connection.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -289,7 +333,7 @@ public class ConnectionProperties {
 
 	/**
 	 * Returns the RTSP URI of this Connection.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -305,7 +349,7 @@ public class ConnectionProperties {
 	 * transcoding this can be disabled to save CPU power. If you are not sure if
 	 * transcoding might be necessary, setting this property to false <strong>may
 	 * result in media connections not being established</strong>.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -321,7 +365,7 @@ public class ConnectionProperties {
 	 * server while nobody is asking to receive the camera's video. On the
 	 * counterpart, first user subscribing to the IP camera stream will take a
 	 * little longer to receive its video.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -336,7 +380,7 @@ public class ConnectionProperties {
 	 * milliseconds. The smaller it is, the less delay the signal will have, but
 	 * more problematic will be in unstable networks. Use short buffers only if
 	 * there is a quality connection between the IP camera and OpenVidu Server.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -344,6 +388,19 @@ public class ConnectionProperties {
 	 */
 	public Integer getNetworkCache() {
 		return this.networkCache;
+	}
+
+	/**
+	 * Returns a list of custom ICE Servers configured for this connection.
+	 * <br><br>
+	 * See {@link io.openvidu.java.client.ConnectionProperties.Builder#addCustomIceServer(IceServerProperties)} for more
+	 * information.
+	 * <br><br>
+	 * <strong>Only for
+	 * {@link io.openvidu.java.client.ConnectionType#WEBRTC}</strong>
+	 */
+	public List<IceServerProperties> getCustomIceServers() {
+		return new ArrayList<>(this.customIceServers);
 	}
 
 	public JsonObject toJson(String sessionId) {
@@ -376,6 +433,12 @@ public class ConnectionProperties {
 		} else {
 			json.add("kurentoOptions", JsonNull.INSTANCE);
 		}
+		JsonArray customIceServersJsonList = new JsonArray();
+		customIceServers.forEach((customIceServer) -> {
+			customIceServersJsonList.add(customIceServer.toJson());
+		});
+		json.add("customIceServers", customIceServersJsonList);
+
 		// IPCAM
 		if (getRtspUri() != null) {
 			json.addProperty("rtspUri", getRtspUri());

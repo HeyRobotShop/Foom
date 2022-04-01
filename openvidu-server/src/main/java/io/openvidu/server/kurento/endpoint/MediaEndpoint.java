@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.openvidu.server.utils.ice.IceCandidateDataParser;
+import io.openvidu.server.utils.ice.IceCandidateType;
 import org.kurento.client.BaseRtpEndpoint;
 import org.kurento.client.Continuation;
 import org.kurento.client.Endpoint;
@@ -102,6 +104,7 @@ public abstract class MediaEndpoint {
 	private final List<IceCandidate> receivedCandidateList = Collections.synchronizedList(new ArrayList<>());
 	private final List<IceCandidate> gatheredCandidateList = Collections.synchronizedList(new ArrayList<>());
 	private LinkedList<IceCandidate> candidates = new LinkedList<IceCandidate>();
+
 
 	public String selectedLocalIceCandidate;
 	public String selectedRemoteIceCandidate;
@@ -300,7 +303,7 @@ public abstract class MediaEndpoint {
 					if (openviduConfig.getCoturnIp() != null && !openviduConfig.getCoturnIp().isEmpty()
 							&& openviduConfig.isTurnadminAvailable()) {
 						webEndpoint.setStunServerAddress(openviduConfig.getCoturnIp());
-						webEndpoint.setStunServerPort(3478);
+						webEndpoint.setStunServerPort(openviduConfig.getCoturnPort());
 					}
 
 					endpointLatch.countDown();
@@ -568,13 +571,70 @@ public abstract class MediaEndpoint {
 		webEndpoint.addIceCandidateFoundListener(event -> {
 			final IceCandidate candidate = event.getCandidate();
 
-			gatheredCandidateList.add(candidate);
-			this.owner.logIceCandidate(new WebrtcDebugEvent(this.owner, this.streamId, WebrtcDebugEventIssuer.server,
-					this.getWebrtcDebugOperation(), WebrtcDebugEventType.iceCandidate,
-					gson.toJsonTree(candidate).toString()));
-
-			owner.sendIceCandidate(senderPublicId, endpointName, candidate);
+			if (this.openviduConfig.areMediaNodesPublicIpsDefined()) {
+				sendCandidatesWithConfiguredIp(senderPublicId, candidate);
+			} else {
+				sendCandidate(senderPublicId, candidate);
+			}
 		});
+	}
+
+	private void sendCandidatesWithConfiguredIp(String senderPublicId, IceCandidate candidate) {
+		try {
+			// Get media node private IP
+			String kurentoPrivateIp = this.owner.getSession().getKms().getIp();
+
+			// Get Ip to be replaced
+			String ipToReplace = this.openviduConfig.getMediaNodesPublicIpsMap().get(kurentoPrivateIp);
+
+			// If Ip is configured
+			if (ipToReplace != null && !ipToReplace.isEmpty()) {
+				// Create IceCandidateParser to modify original candidate information
+				IceCandidateDataParser candidateParser = new IceCandidateDataParser(candidate);
+
+				// get original IP
+				String originalIp = candidateParser.getIp();
+
+				// Replace all candidates with with new configured IP
+				IceCandidate candidateMaxPriority = new IceCandidate(candidate.getCandidate(), candidate.getSdpMid(),
+						candidate.getSdpMLineIndex());
+				candidateParser.setIp(ipToReplace);
+				candidateParser.setMaxPriority();
+				candidateMaxPriority.setCandidate(candidateParser.toString());
+				sendCandidate(senderPublicId, candidateMaxPriority);
+
+				// Resend old public IP next to the new one
+				if (candidateParser.isType(IceCandidateType.srflx)) {
+					IceCandidate candidateMinPriority = new IceCandidate(candidate.getCandidate(), candidate.getSdpMid(),
+							candidate.getSdpMLineIndex());
+					if (openviduConfig.isCoturnUsingInternalRelay()) {
+						// If coturn is using internal relay, there should be candidates with the private IP
+						// to relay on the internal network
+						candidateParser.setIp(kurentoPrivateIp); // Send candidate with private ip
+					} else {
+						// If coturn is configured using public IP as relay, candidates with the original IP
+						// and the new one should be sent
+						// to relay using the public internet
+						candidateParser.setIp(originalIp); // Send candidate with original IP
+					}
+					candidateParser.setMinPriority(); // Set min priority for this candidate
+					candidateMinPriority.setCandidate(candidateParser.toString());
+					sendCandidate(senderPublicId, candidateMinPriority);
+				}
+			}
+		} catch (Exception e) {
+			log.error("Error on adding additional IP in candidates: {}", e.getMessage());
+			// On Exception, send candidate without any modification
+			sendCandidate(senderPublicId, candidate);
+		}
+	}
+
+	private void sendCandidate(String senderPublicId, IceCandidate candidate) {
+		gatheredCandidateList.add(candidate);
+		this.owner.logIceCandidate(new WebrtcDebugEvent(this.owner, this.streamId, WebrtcDebugEventIssuer.server,
+				this.getWebrtcDebugOperation(), WebrtcDebugEventType.iceCandidate,
+				gson.toJsonTree(candidate).toString()));
+		owner.sendIceCandidate(senderPublicId, endpointName, candidate);
 	}
 
 	/**
@@ -589,17 +649,8 @@ public abstract class MediaEndpoint {
 			throw new OpenViduException(Code.MEDIA_WEBRTC_ENDPOINT_ERROR_CODE,
 					"Can't start gathering ICE candidates on null WebRtcEndpoint (ep: " + endpointName + ")");
 		}
-		webEndpoint.gatherCandidates(new Continuation<Void>() {
-			@Override
-			public void onSuccess(Void result) throws Exception {
-				log.trace("EP {}: Internal endpoint started to gather candidates", endpointName);
-			}
-
-			@Override
-			public void onError(Throwable cause) throws Exception {
-				log.warn("EP {}: Internal endpoint failed to start gathering candidates", endpointName, cause);
-			}
-		});
+		webEndpoint.gatherCandidates();
+		log.trace("EP {}: Internal endpoint started to gather candidates", endpointName);
 	}
 
 	private void internalAddIceCandidate(IceCandidate candidate) throws OpenViduException {

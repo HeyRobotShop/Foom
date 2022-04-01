@@ -8,6 +8,7 @@
         <mat-checkbox [(ngModel)]="publisherProperties.publishAudio" (click)="publisherProperties.publishAudio = !publisherProperties.publishAudio">Publish audio</mat-checkbox>
         <mat-checkbox [(ngModel)]="publisherProperties.publishVideo" (click)="publisherProperties.publishVideo = !publisherProperties.publishVideo">Publish video</mat-checkbox>
         <mat-checkbox [(ngModel)]="publisherProperties.mirror" (click)="publisherProperties.mirror = !publisherProperties.mirror">Mirror</mat-checkbox>
+        <mat-checkbox [(ngModel)]="publisherProperties.videoSimulcast" (click)="publisherProperties.videoSimulcast = !publisherProperties.videoSimulcast">Video Simulcast</mat-checkbox>
         <mat-divider></mat-divider>
         <mat-form-field>
             <input matInput placeholder="Audio source" [(ngModel)]="audioSource" [disabled]="(publisherProperties.audioSource === false)">
@@ -35,17 +36,17 @@
         </mat-chip-list>
         <mat-divider></mat-divider>
         <mat-form-field>
-            <input matInput placeholder="Resolution" [(ngModel)]="publisherProperties.resolution">
+            <input matInput id="resolution-input" placeholder="Resolution" [(ngModel)]="publisherProperties.resolution">
         </mat-form-field>
         <mat-form-field>
-            <input matInput placeholder="Framerate" [(ngModel)]="publisherProperties.frameRate" type="number">
+            <input matInput id="framerate-input" placeholder="Framerate" [(ngModel)]="publisherProperties.frameRate" type="number">
         </mat-form-field>
         <mat-divider></mat-divider>
         <mat-form-field>
-            <input matInput placeholder="Filter type" [(ngModel)]="filter.type" type="text">
+            <input matInput id="filter-type-input" placeholder="Filter type" [(ngModel)]="filter.type" type="text">
         </mat-form-field>
         <mat-form-field>
-            <input matInput placeholder="Filter options" [(ngModel)]="stringOptions" type="text">
+            <input matInput id="filter-options-input" placeholder="Filter options" [(ngModel)]="stringOptions" type="text">
         </mat-form-field>
     </mat-dialog-content>
     <mat-dialog-actions>

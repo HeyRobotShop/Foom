@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,8 +65,8 @@ export enum ExceptionEventName {
      * A [[Subscriber]] object has not fired event `streamPlaying` after certain timeout. `streamPlaying` event belongs to [[StreamManagerEvent]]
      * category. It wraps Web API native event [canplay](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/canplay_event).
      * 
-     * OpenVidu Browser can take care of the video players (see [here](/en/latest/cheatsheet/manage-videos/#let-openvidu-take-care-of-the-video-players)),
-     * or you can take care of video players on your own (see [here](/en/latest/cheatsheet/manage-videos/#you-take-care-of-the-video-players)).
+     * OpenVidu Browser can take care of the video players (see [here](/en/stable/cheatsheet/manage-videos/#let-openvidu-take-care-of-the-video-players)),
+     * or you can take care of video players on your own (see [here](/en/stable/cheatsheet/manage-videos/#you-take-care-of-the-video-players)).
      * Either way, whenever a [[Subscriber]] object is commanded to attach its [[Stream]] to a video element, it is supposed to fire `streamPlaying`
      * event shortly after. If it does not, then we can safely assume that something wrong has happened while playing the remote video and the 
      * application may be notified through this specific ExceptionEvent.
@@ -84,10 +84,7 @@ export enum ExceptionEventName {
 }
 
 /**
- * Defines event `exception` dispatched by [[Session]] object.
- * 
- * This event acts as a global handler for asynchronous errors that may be triggered for multiple reasons and from multiple origins. To see the different
- * types of exceptions go to [[ExceptionEventName]].
+ * Triggered by [[SessionEventMap.exception]]
  */
 export class ExceptionEvent extends Event {
 

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,6 +81,16 @@ export interface PublisherProperties {
      * @default _Default camera_
      */
     videoSource?: string | MediaStreamTrack | boolean;
+
+    /**
+     * Use Simulcast video on WebRTC Publishers.
+     * Senders will encode duplicate video streams with different qualities,
+     * so the media server is able to select the most appropriate quality stream
+     * for each Subscriber.
+     * This setting is honored only if OpenVidu Server was configured to use the
+     * mediasoup media server. Otherwise, Simulcast will be disabled.
+     */
+    videoSimulcast?: boolean;
 
     /**
      * **WARNING**: experimental option. This property may change in the near future

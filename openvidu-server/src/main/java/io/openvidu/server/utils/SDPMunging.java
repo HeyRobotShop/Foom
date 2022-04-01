@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ public class SDPMunging {
 
 	private static final Logger log = LoggerFactory.getLogger(SDPMunging.class);
 
-	private Set<VideoCodec> supportedVideoCodecs = new HashSet<>(Arrays.asList(VideoCodec.VP8, VideoCodec.H264));
+	private Set<VideoCodec> supportedVideoCodecs = new HashSet<>(Arrays.asList(VideoCodec.VP8, VideoCodec.VP9, VideoCodec.H264));
 
 	private final String PT_PATTERN = "a=rtpmap:(\\d+) %s/90000";
 	private final String EXTRA_PT_PATTERN = "a=fmtp:(\\d+) apt=%s";
@@ -45,7 +45,7 @@ public class SDPMunging {
 			Arrays.asList("^a=extmap:%s .+$", "^a=rtpmap:%s .+$", "^a=fmtp:%s .+$", "^a=rtcp-fb:%s .+$"));
 
 	/**
-	 * `codec` is a uppercase SDP-style codec name: "VP8", "H264".
+	 * `codec` is an uppercase SDP-style codec name: "VP8", "VP9", "H264".
 	 *
 	 * This looks for all video m-sections (lines starting with "m=video"), then
 	 * searches all of its related PayloadTypes trying to find those which
@@ -187,7 +187,7 @@ public class SDPMunging {
 				return mungedSdpOffer;
 			} else {
 				throw new OpenViduException(Code.FORCED_CODEC_NOT_FOUND_IN_SDPOFFER,
-						"Codec not supported by Media Server");
+						"Codec not supported by Media Server: " + forcedVideoCodec);
 			}
 
 		} catch (OpenViduException e) {

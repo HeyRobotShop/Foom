@@ -3,7 +3,7 @@
 # Global variables
 OPENVIDU_FOLDER=openvidu
 OPENVIDU_VERSION=master
-OPENVIDU_UPGRADABLE_VERSION="2.16"
+OPENVIDU_UPGRADABLE_VERSION="2.21"
 AWS_SCRIPTS_FOLDER=${OPENVIDU_FOLDER}/cluster/aws
 ELASTICSEARCH_FOLDER=${OPENVIDU_FOLDER}/elasticsearch
 BEATS_FOLDER=${OPENVIDU_FOLDER}/beats
@@ -13,7 +13,7 @@ fatal_error() {
     printf "\n     =======¡ERROR!======="
     printf "\n     %s" "$1"
     printf "\n"
-    exit 0
+    exit 1
 }
 
 new_ov_installation() {
@@ -87,6 +87,10 @@ new_ov_installation() {
      chmod +x "${OPENVIDU_FOLDER}/openvidu" || fatal_error "Error while adding permission to 'openvidu' program"
      printf '\n          - openvidu'
 
+     # Change recording folder with all permissions
+     printf "\n     => Adding permission to 'recordings' folder..."
+     mkdir -p "${OPENVIDU_FOLDER}/recordings"
+
      chmod +x "${AWS_SCRIPTS_FOLDER}/openvidu_autodiscover.sh" || fatal_error "Error while adding permission to 'openvidu_autodiscover.sh' program"
      printf '\n          - openvidu_autodiscover.sh'
 
@@ -103,6 +107,10 @@ new_ov_installation() {
      # Create vhost nginx folder
      printf "\n     => Creating folder 'custom-nginx-vhosts'..."
      mkdir "${OPENVIDU_FOLDER}/custom-nginx-vhosts" || fatal_error "Error while creating the folder 'custom-nginx-vhosts'"
+
+     # Create vhost nginx folder
+     printf "\n     => Creating folder 'custom-nginx-locations'..."
+     mkdir "${OPENVIDU_FOLDER}/custom-nginx-locations" || fatal_error "Error while creating the folder 'custom-nginx-locations'"
 
      # Ready to use
      printf '\n'
@@ -175,6 +183,13 @@ upgrade_ov() {
      # posible or not. If it is not posible launch a warning and stop the upgrade.
      if [[ "${OPENVIDU_PREVIOUS_VERSION}" != "${OPENVIDU_UPGRADABLE_VERSION}."* ]] && [[ "${OPENVIDU_PREVIOUS_VERSION}" != "${OPENVIDU_VERSION//v}"* ]]; then
           fatal_error "You can't update from version ${OPENVIDU_PREVIOUS_VERSION} to ${OPENVIDU_VERSION}.\nNever upgrade across multiple major versions."
+     fi
+
+     # If deployment has AWS_DEFAULT_REGION defined (deployed with cloudformation), check if new AMI of the media node is present as argument
+     NEW_AMI_ID="${1:-}"
+     AWS_REGION=$(get_previous_env_variable AWS_DEFAULT_REGION)
+     if [[ -n ${AWS_REGION} ]]; then
+          [[ -z ${NEW_AMI_ID} ]] && fatal_error "You need to copy and specify an AMI Id for Media Nodes. Check https://docs.openvidu.io/en/${OPENVIDU_VERSION}/deployment/pro/upgrading/#option-2-update-current-deployment-to-${OPENVIDU_VERSION//.}"
      fi
 
      printf '\n'
@@ -286,6 +301,11 @@ upgrade_ov() {
           printf '\n          - custom-nginx-vhosts'
      fi
 
+     if [ -d "${OPENVIDU_PREVIOUS_FOLDER}/custom-nginx-locations" ]; then
+          mv "${OPENVIDU_PREVIOUS_FOLDER}/custom-nginx-locations" "${ROLL_BACK_FOLDER}" || fatal_error "Error while moving previous directory 'custom-nginx-locations'"
+          printf '\n          - custom-nginx-locations'
+     fi
+
      # Move tmp files to Openvidu
      printf '\n     => Updating files:'
 
@@ -334,6 +354,10 @@ upgrade_ov() {
      chmod +x "${OPENVIDU_PREVIOUS_FOLDER}/openvidu" || fatal_error "Error while adding permission to 'openvidu' program"
      printf '\n          - openvidu'
 
+     # Change recording folder with all permissions
+     printf "\n     => Adding permission to 'recordings' folder..."
+     mkdir -p "${OPENVIDU_PREVIOUS_FOLDER}/recordings"
+
      chmod +x "${OPENVIDU_PREVIOUS_FOLDER}/cluster/aws/openvidu_autodiscover.sh" || fatal_error "Error while adding permission to 'openvidu_autodiscover.sh' program"
      printf '\n          - openvidu_autodiscover.sh'
 
@@ -350,12 +374,6 @@ upgrade_ov() {
      # Update .env variables to new .env-version
      AWS_REGION=$(get_previous_env_variable AWS_DEFAULT_REGION)
      if [[ -n ${AWS_REGION} ]]; then
-
-          # Get new AMI ID
-          NEW_AMI_ID=$(curl https://s3-eu-west-1.amazonaws.com/aws.openvidu.io/CF-OpenVidu-Pro-${OPENVIDU_VERSION//v}.yaml --silent |
-                         sed -n -e '/KMSAMIMAP:/,/Metadata:/ p' |
-                         grep -A 1 "${AWS_REGION}" | grep AMI | tr -d " " | cut -d":" -f2)
-          [[ -z ${NEW_AMI_ID} ]] && fatal_error "Error while getting new AWS_IMAGE_ID for Media Nodes"
 
           # Get previous values
           PREV_AWS_DEFAULT_REGION=$(get_previous_env_variable AWS_DEFAULT_REGION)
@@ -431,7 +449,7 @@ fi
 
 # Check type of installation
 if [[ -n "$1" && "$1" == "upgrade" ]]; then
-     upgrade_ov
+     upgrade_ov "$2"
 else
      new_ov_installation
 fi

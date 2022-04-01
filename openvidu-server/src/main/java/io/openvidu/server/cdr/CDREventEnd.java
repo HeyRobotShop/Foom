@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ public class CDREventEnd extends CDREvent {
 			EndReason reason, Long timestamp) {
 		super(eventName, sessionId, uniqueSessionId, timestamp);
 		this.startTime = startTime;
-		this.duration = (int) ((this.timeStamp - this.startTime) / 1000);
+		this.duration = (int) ((this.timestamp - this.startTime) / 1000);
 		this.reason = reason;
 	}
 

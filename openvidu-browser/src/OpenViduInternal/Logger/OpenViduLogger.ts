@@ -89,7 +89,7 @@ export class OpenViduLogger {
 						const seen = new WeakSet();
 						return (key, value) => {
 							if (typeof value === "object" && value != null) {
-								if (seen.has(value) || value instanceof HTMLElement) {
+								if (seen.has(value) || (HTMLElement && value instanceof HTMLElement)) {
 									return;
 								}
 								seen.add(value);
@@ -251,9 +251,7 @@ export class OpenViduLogger {
 	 * @hidden
 	 */
 	warn(...args: any[]) {
-		if (!this.isProdMode) {
-			this.defaultConsoleLogger.warn.apply(this.defaultConsoleLogger.logger, arguments);
-		}
+		this.defaultConsoleLogger.warn.apply(this.defaultConsoleLogger.logger, arguments);
 		if (this.isJSNLogSetup) {
 			JL().warn(arguments);
 		}

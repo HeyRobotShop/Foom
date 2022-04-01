@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class Recording {
 		 * specific session recording has ended. This module will remain up and running
 		 * as long as the session remains active.<br>
 		 * <br>
-		 * 
+		 *
 		 * <ul>
 		 * <li><strong>Pros vs COMPOSED</strong>: the process of starting the recording
 		 * will be noticeably faster. This can be very useful in use cases where a
@@ -232,10 +232,10 @@ public class Recording {
 	/**
 	 * URL of the recording. You can access the file from there. It is
 	 * <code>null</code> until recording reaches "ready" or "failed" status. If
-	 * <a href="https://docs.openvidu.io/en/stable/reference-docs/openvidu-config/"
-	 * target= "_blank">OpenVidu Server configuration</a> property
-	 * <code>OPENVIDU_RECORDING_PUBLIC_ACCESS</code> is false, this path will be
-	 * secured with OpenVidu credentials
+	 * <a href="https://docs.openvidu.io/en/stable/reference-docs/openvidu-config/">
+	 *   OpenVidu Server configuration
+	 * </a> property <code>OPENVIDU_RECORDING_PUBLIC_ACCESS</code> is false,
+	 * this path will be secured with OpenVidu credentials
 	 */
 	public String getUrl() {
 		return url;

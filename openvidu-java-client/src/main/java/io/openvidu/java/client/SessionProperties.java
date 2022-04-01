@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ public class SessionProperties {
 	private String customSessionId;
 	private String mediaNode;
 	private VideoCodec forcedVideoCodec;
+	private VideoCodec forcedVideoCodecResolved;
 	private Boolean allowTranscoding;
 
 	/**
@@ -42,7 +43,8 @@ public class SessionProperties {
 		private RecordingProperties defaultRecordingProperties = new RecordingProperties.Builder().build();
 		private String customSessionId = "";
 		private String mediaNode;
-		private VideoCodec forcedVideoCodec = VideoCodec.VP8;
+		private VideoCodec forcedVideoCodec = VideoCodec.MEDIA_SERVER_PREFERRED;
+		private VideoCodec forcedVideoCodecResolved = VideoCodec.NONE;
 		private Boolean allowTranscoding = false;
 
 		/**
@@ -51,7 +53,8 @@ public class SessionProperties {
 		 */
 		public SessionProperties build() {
 			return new SessionProperties(this.mediaMode, this.recordingMode, this.defaultRecordingProperties,
-					this.customSessionId, this.mediaNode, this.forcedVideoCodec, this.allowTranscoding);
+					this.customSessionId, this.mediaNode, this.forcedVideoCodec, this.forcedVideoCodecResolved,
+					this.allowTranscoding);
 		}
 
 		/**
@@ -101,7 +104,7 @@ public class SessionProperties {
 		}
 
 		/**
-		 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank"
+		 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/"
 		 * style="display: inline-block; background-color: rgb(0, 136, 170); color:
 		 * white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius:
 		 * 3px; font-size: 13px; line-height:21px; font-family: Montserrat,
@@ -114,13 +117,19 @@ public class SessionProperties {
 		}
 
 		/**
-		 * Call this method to define which video codec do you want to be forcibly used
-		 * for this session. This allows browsers/clients to use the same codec avoiding
-		 * transcoding in the media server. If the browser/client is not compatible with
-		 * the specified codec and {@link #allowTranscoding(Boolean)} is
-		 * <code>false</code> and exception will occur. If forcedVideoCodec is set to
-		 * NONE, no codec will be forced.<br>
-		 * Default value is {@link VideoCodec#VP8}
+		 * Define which video codec will be forcibly used for this session.
+		 * This forces all browsers/clients to use the same codec, which would
+		 * avoid transcoding in the media server (Kurento only). If
+		 * <code>forcedVideoCodec</code> is set to NONE, no codec will be forced.
+		 *
+		 * If the browser/client is not compatible with the specified codec, and
+		 * {@link #allowTranscoding(Boolean)} is <code>false</code>, an
+		 * exception will occur.
+		 *
+		 * If defined here, this parameter has prevalence over
+		 * OPENVIDU_STREAMS_FORCED_VIDEO_CODEC.
+		 *
+		 * Default is {@link VideoCodec#MEDIA_SERVER_PREFERRED}.
 		 */
 		public SessionProperties.Builder forcedVideoCodec(VideoCodec forcedVideoCodec) {
 			this.forcedVideoCodec = forcedVideoCodec;
@@ -128,10 +137,24 @@ public class SessionProperties {
 		}
 
 		/**
+		 * Actual video codec that will be forcibly used for this session.
+		 * This is the same as <code>forcedVideoCodec</code>, except when its
+		 * value is {@link VideoCodec#MEDIA_SERVER_PREFERRED}: in that case,
+		 * OpenVidu Server will fill this property with a resolved value,
+		 * depending on what is the configured media server.
+		 */
+		public SessionProperties.Builder forcedVideoCodecResolved(VideoCodec forcedVideoCodec) {
+			this.forcedVideoCodecResolved = forcedVideoCodec;
+			return this;
+		}
+
+		/**
 		 * Call this method to define if you want to allow transcoding in the media
 		 * server or not when {@link #forcedVideoCodec(VideoCodec)} is not compatible
 		 * with the browser/client.<br>
-		 * Default value is false
+		 * If defined here, this parameter has prevalence over
+		 * OPENVIDU_STREAMS_ALLOW_TRANSCODING. OPENVIDU_STREAMS_ALLOW_TRANSCODING
+		 * default is 'false'
 		 */
 		public SessionProperties.Builder allowTranscoding(Boolean allowTranscoding) {
 			this.allowTranscoding = allowTranscoding;
@@ -150,13 +173,14 @@ public class SessionProperties {
 
 	private SessionProperties(MediaMode mediaMode, RecordingMode recordingMode,
 			RecordingProperties defaultRecordingProperties, String customSessionId, String mediaNode,
-			VideoCodec forcedVideoCodec, Boolean allowTranscoding) {
+			VideoCodec forcedVideoCodec, VideoCodec forcedVideoCodecResolved, Boolean allowTranscoding) {
 		this.mediaMode = mediaMode;
 		this.recordingMode = recordingMode;
 		this.defaultRecordingProperties = defaultRecordingProperties;
 		this.customSessionId = customSessionId;
 		this.mediaNode = mediaNode;
 		this.forcedVideoCodec = forcedVideoCodec;
+		this.forcedVideoCodecResolved = forcedVideoCodecResolved;
 		this.allowTranscoding = allowTranscoding;
 	}
 
@@ -200,7 +224,7 @@ public class SessionProperties {
 	}
 
 	/**
-	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank"
+	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/"
 	 * style="display: inline-block; background-color: rgb(0, 136, 170); color:
 	 * white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius:
 	 * 3px; font-size: 13px; line-height:21px; font-family: Montserrat,
@@ -213,10 +237,22 @@ public class SessionProperties {
 	}
 
 	/**
-	 * Defines which video codec is being forced to be used in the browser/client
+	 * Defines which video codec is being forced to be used in the browser/client.
+	 * This is the raw value that was configured. It might get resolved into a
+	 * different one for actual usage in the server.
 	 */
 	public VideoCodec forcedVideoCodec() {
 		return this.forcedVideoCodec;
+	}
+
+	/**
+	 * Defines which video codec is being forced to be used in the browser/client.
+	 * This is the resolved value, for actual usage in the server.
+	 *
+	 * @hidden
+	 */
+	public VideoCodec forcedVideoCodecResolved() {
+		return this.forcedVideoCodecResolved;
 	}
 
 	/**
@@ -227,22 +263,25 @@ public class SessionProperties {
 		return this.allowTranscoding;
 	}
 
-	protected JsonObject toJson() {
+	public JsonObject toJson() {
 		JsonObject json = new JsonObject();
-		json.addProperty("mediaMode", mediaMode().name());
-		json.addProperty("recordingMode", recordingMode().name());
-		json.addProperty("customSessionId", customSessionId());
-		json.add("defaultRecordingProperties", defaultRecordingProperties.toJson());
-		if (mediaNode() != null) {
+		json.addProperty("mediaMode", this.mediaMode.name());
+		json.addProperty("recordingMode", this.recordingMode.name());
+		json.add("defaultRecordingProperties", this.defaultRecordingProperties.toJson());
+		json.addProperty("customSessionId", this.customSessionId);
+		if (this.mediaNode != null && !this.mediaNode.isEmpty()) {
 			JsonObject mediaNodeJson = new JsonObject();
-			mediaNodeJson.addProperty("id", mediaNode());
+			mediaNodeJson.addProperty("id", this.mediaNode);
 			json.add("mediaNode", mediaNodeJson);
 		}
-		if (forcedVideoCodec() != null) {
-			json.addProperty("forcedVideoCodec", forcedVideoCodec().name());
+		if (this.forcedVideoCodec != null) {
+			json.addProperty("forcedVideoCodec", this.forcedVideoCodec.name());
 		}
-		if (isTranscodingAllowed() != null) {
-			json.addProperty("allowTranscoding", isTranscodingAllowed());
+		if (this.forcedVideoCodecResolved != null) {
+			json.addProperty("forcedVideoCodecResolved", this.forcedVideoCodecResolved.name());
+		}
+		if (this.allowTranscoding != null) {
+			json.addProperty("allowTranscoding", this.allowTranscoding);
 		}
 		return json;
 	}

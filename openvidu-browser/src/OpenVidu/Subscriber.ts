@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,7 @@ const logger: OpenViduLogger = OpenViduLogger.getInstance();
 /**
  * Packs remote media streams. Participants automatically receive them when others publish their streams. Initialized with [[Session.subscribe]] method
  * 
- * ### Available event listeners (and events dispatched)
- *
- * - _All events inherited from [[StreamManager]] class_
+ * See available event listeners at [[StreamManagerEventMap]].
  */
 export class Subscriber extends StreamManager {
 

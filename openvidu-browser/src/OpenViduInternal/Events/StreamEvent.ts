@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ import { OpenViduLogger } from '../Logger/OpenViduLogger';
 const logger: OpenViduLogger = OpenViduLogger.getInstance();
 
 /**
- * Defines the following events:
- * - `streamCreated`: dispatched by [[Session]] and [[Publisher]] after some user has started publishing to the session
- * - `streamDestroyed`: dispatched by [[Session]] and [[Publisher]] after some user has stopped publishing to the session
+ * Triggered by:
+ * - `streamCreated` (available for [Session](/en/stable/api/openvidu-browser/interfaces/SessionEventMap.html#streamCreated) and [Publisher](/en/stable/api/openvidu-browser/interfaces/PublisherEventMap.html#streamCreated) objects)
+ * - `streamDestroyed]` (available for [Session](/en/stable/api/openvidu-browser/interfaces/SessionEventMap.html#streamDestroyed) and [Publisher](/en/stable/api/openvidu-browser/interfaces/PublisherEventMap.html#streamDestroyed) objects)
  */
 export class StreamEvent extends Event {
 

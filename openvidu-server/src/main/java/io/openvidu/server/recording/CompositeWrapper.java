@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,11 @@ public class CompositeWrapper {
 		this.recorderEndpoint.addErrorListener(new EventListener<ErrorEvent>() {
 			@Override
 			public void onEvent(ErrorEvent event) {
-				log.error(event.getErrorCode() + " " + event.getDescription());
+				final String msg = "Event [" + event.getType() + "] endpoint: "
+						+ recorderEndpoint.getName() + " | errorCode: " + event.getErrorCode()
+						+ " | description: " + event.getDescription() + " | timestamp: "
+						+ event.getTimestampMillis();
+				log.error(msg);
 			}
 		});
 
@@ -121,7 +125,11 @@ public class CompositeWrapper {
 
 	public void connectPublisherEndpoint(PublisherEndpoint endpoint) throws OpenViduException {
 		HubPort hubPort = new HubPort.Builder(composite).build();
-		endpoint.connect(hubPort, false);
+
+		// Block on this call: connections must have been already finished
+		// before calling `RecorderEndpoint.record()`.
+		endpoint.connect(hubPort, true);
+
 		String streamId = endpoint.getOwner().getPublisherStreamId();
 		this.hubPorts.put(streamId, hubPort);
 		this.publisherEndpoints.put(streamId, endpoint);

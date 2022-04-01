@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ package io.openvidu.server.cdr;
 public enum CDREventName {
 
 	sessionCreated, sessionDestroyed, participantJoined, participantLeft, webrtcConnectionCreated,
-	webrtcConnectionDestroyed, recordingStarted, recordingStopped, recordingStatusChanged, filterEventDispatched,
-	signalSent, mediaNodeStatusChanged, autoscaling, nodeCrashed
+	webrtcConnectionDestroyed, recordingStatusChanged, filterEventDispatched, signalSent, mediaNodeStatusChanged,
+	autoscaling, nodeCrashed, nodeRecovered
 
 }

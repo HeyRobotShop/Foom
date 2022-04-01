@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,9 @@
 package io.openvidu.java.client;
 
 /**
- * See {@link io.openvidu.java.client.SessionProperties.Builder#forcedVideoCodec(VideoCodec)}
+ * See
+ * {@link io.openvidu.java.client.SessionProperties.Builder#forcedVideoCodec(VideoCodec)}
  */
 public enum VideoCodec {
-    VP8, VP9, H264, NONE
+    MEDIA_SERVER_PREFERRED, NONE, VP8, VP9, H264
 }

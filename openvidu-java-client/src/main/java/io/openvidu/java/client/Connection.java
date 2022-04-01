@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /**
  * See {@link io.openvidu.java.client.Session#getConnections()}
@@ -37,6 +39,7 @@ public class Connection {
 	private Long createdAt;
 	private Long activeAt;
 	private String location;
+	private String ip;
 	private String platform;
 	private String clientData;
 	private ConnectionProperties connectionProperties;
@@ -63,9 +66,10 @@ public class Connection {
 	 * Returns the status of the Connection. Can be:
 	 * <ul>
 	 * <li><code>pending</code>: if the Connection is waiting for any user to use
-	 * its internal token to connect to the session, calling method <a href=
-	 * "https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/session.html#connect"
-	 * target ="_blank">Session.connect</a> in OpenVidu Browser.</li>
+	 * its internal token to connect to the session, calling method
+	 * <a href="https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/Session.html#connect">
+	 *   Session.connect
+	 * </a> in OpenVidu Browser.</li>
 	 * <li><code>active</code>: if the internal token of the Connection has already
 	 * been used by some user to connect to the session, and it cannot be used
 	 * again.</li>
@@ -109,9 +113,10 @@ public class Connection {
 
 	/**
 	 * Whether the streams published by this Connection will be recorded or not.
-	 * This only affects <a href=
-	 * "https://docs.openvidu.io/en/stable/advanced-features/recording#selecting-streams-to-be-recorded"
-	 * target="_blank">INDIVIDUAL recording</a>.
+	 * This only affects
+	 * <a href="https://docs.openvidu.io/en/stable/advanced-features/recording/#individual-recording-selection">
+	 *   INDIVIDUAL recording
+	 * </a>.
 	 */
 	public boolean record() {
 		return this.connectionProperties.record();
@@ -119,7 +124,7 @@ public class Connection {
 
 	/**
 	 * Returns the role of the Connection.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -131,7 +136,7 @@ public class Connection {
 
 	/**
 	 * Returns the RTSP URI of the Connection.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -147,7 +152,7 @@ public class Connection {
 	 * transcoding this can be disabled to save CPU power. If you are not sure if
 	 * transcoding might be necessary, setting this property to false <strong>may
 	 * result in media connections not being established</strong>.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -163,7 +168,7 @@ public class Connection {
 	 * consumption and network bandwidth in your server while nobody is asking to
 	 * receive the camera's video. On the counterpart, first user subscribing to the
 	 * IP camera stream will take a little longer to receive its video.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -179,7 +184,7 @@ public class Connection {
 	 * have, but more problematic will be in unstable networks. Use short buffers
 	 * only if there is a quality connection between the IP camera and OpenVidu
 	 * Server.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <strong>Only for
@@ -190,29 +195,49 @@ public class Connection {
 	}
 
 	/**
+	 * Returns a list of custom ICE Servers configured for this connection.
+	 * <br><br>
+	 * See {@link io.openvidu.java.client.ConnectionProperties.Builder#addCustomIceServer(IceServerProperties)} for more
+	 * information.
+	 * <br><br>
+	 * <strong>Only for
+	 * {@link io.openvidu.java.client.ConnectionType#WEBRTC}</strong>
+	 */
+	public List<IceServerProperties> getCustomIceServers() {
+		return this.connectionProperties.getCustomIceServers();
+	}
+
+	/**
 	 * Returns the token string associated to the Connection. This is the value that
 	 * must be sent to the client-side to be consumed in OpenVidu Browser method
-	 * <a href=
-	 * "https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/session.html#connect"
-	 * target="_blank">Session.connect</a>.
+	 * <a href="https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/Session.html#connect">
+	 *   Session.connect
+	 * </a>.
 	 */
 	public String getToken() {
 		return this.token;
 	}
 
 	/**
-	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/" target="_blank"
+	 * <a href="https://docs.openvidu.io/en/stable/openvidu-pro/"
 	 * style="display: inline-block; background-color: rgb(0, 136, 170); color:
 	 * white; font-weight: bold; padding: 0px 5px; margin-right: 5px; border-radius:
 	 * 3px; font-size: 13px; line-height:21px; font-family: Montserrat,
 	 * sans-serif">PRO</a>
-	 * 
+	 *
 	 * Returns the geo location of the connection, with the following format:
 	 * <code>"CITY, COUNTRY"</code> (<code>"unknown"</code> if it wasn't possible to
 	 * locate it)
 	 */
 	public String getLocation() {
 		return location;
+	}
+
+	/**
+	 * Returns the IP of the connection, as seen by OpenVidu Server
+	 */
+	public String getIp() {
+		return ip;
 	}
 
 	/**
@@ -225,9 +250,10 @@ public class Connection {
 
 	/**
 	 * Returns the data associated to the connection on the client-side. This value
-	 * is set with second parameter of method <a href=
-	 * "https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/session.html#connect"
-	 * target ="_blank">Session.connect</a> in OpenVidu Browser
+	 * is set with second parameter of method
+	 * <a href="https://docs.openvidu.io/en/stable/api/openvidu-browser/classes/Session.html#connect">
+	 *   Session.connect
+	 * </a> in OpenVidu Browser
 	 */
 	public String getClientData() {
 		return clientData;
@@ -262,6 +288,7 @@ public class Connection {
 		json.addProperty("createdAt", this.createdAt());
 		json.addProperty("activeAt", this.activeAt());
 		json.addProperty("location", this.getLocation());
+		json.addProperty("ip", this.getIp());
 		json.addProperty("platform", this.getPlatform());
 		json.addProperty("clientData", this.getClientData());
 		json.addProperty("token", this.getToken());
@@ -312,6 +339,11 @@ public class Connection {
 		}
 		if (this.connectionProperties.getNetworkCache() != null) {
 			builder.networkCache(this.connectionProperties.getNetworkCache());
+		}
+		if (this.connectionProperties.getCustomIceServers() != null && !this.connectionProperties.getCustomIceServers().isEmpty()) {
+			for (IceServerProperties iceServerProperties: this.connectionProperties.getCustomIceServers()) {
+				builder.addCustomIceServer(iceServerProperties);
+			}
 		}
 		this.connectionProperties = builder.build();
 	}
@@ -383,6 +415,9 @@ public class Connection {
 		if (!json.get("location").isJsonNull()) {
 			this.location = json.get("location").getAsString();
 		}
+		if (!json.get("ip").isJsonNull()) {
+			this.ip = json.get("ip").getAsString();
+		}
 		if (!json.get("platform").isJsonNull()) {
 			this.platform = json.get("platform").getAsString();
 		}
@@ -403,6 +438,24 @@ public class Connection {
 				? OpenViduRole.valueOf(json.get("role").getAsString())
 				: null;
 
+		List<IceServerProperties> customIceServers = new ArrayList<>();
+		if (json.has("customIceServers") && json.get("customIceServers").isJsonArray()) {
+			JsonArray customIceServersJsonArray = json.get("customIceServers").getAsJsonArray();
+			customIceServersJsonArray.forEach(iceJsonElem -> {
+				JsonObject iceJsonObj = iceJsonElem.getAsJsonObject();
+				String url = (iceJsonObj.has("url") && !iceJsonObj.get("url").isJsonNull())
+						? iceJsonObj.get("url").getAsString()
+						: null;
+				String username = (iceJsonObj.has("username") && !iceJsonObj.get("username").isJsonNull())
+						? iceJsonObj.get("username").getAsString()
+						: null;
+				String credential = (iceJsonObj.has("credential") && !iceJsonObj.get("credential").isJsonNull())
+						? iceJsonObj.get("credential").getAsString()
+						: null;
+				customIceServers.add(new IceServerProperties.Builder().url(url).username(username).credential(credential).build());
+			});
+		}
+
 		// IPCAM
 		String rtspUri = (json.has("rtspUri") && !json.get("rtspUri").isJsonNull()) ? json.get("rtspUri").getAsString()
 				: null;
@@ -416,8 +469,9 @@ public class Connection {
 		Integer networkCache = (json.has("networkCache") && !json.get("networkCache").isJsonNull())
 				? json.get("networkCache").getAsInt()
 				: null;
+
 		this.connectionProperties = new ConnectionProperties(type, data, record, role, null, rtspUri, adaptativeBitrate,
-				onlyPlayWithSubscribers, networkCache);
+				onlyPlayWithSubscribers, networkCache, customIceServers);
 
 		return this;
 	}

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.kurento.commons.exception.KurentoException;
 import org.kurento.jsonrpc.Session;
 import org.kurento.jsonrpc.Transaction;
 import org.kurento.jsonrpc.message.Request;
@@ -73,6 +74,13 @@ public class RpcNotificationService {
 		}
 		try {
 			t.sendResponse(result);
+		} catch (KurentoException e) {
+			if (e.getCause() instanceof IllegalStateException) {
+				log.warn("Response couldn't be sent to participant with privateId {}: {}", participantPrivateId,
+						e.getCause().getMessage());
+			} else {
+				log.error("Exception responding to participant ({})", participantPrivateId, e);
+			}
 		} catch (Exception e) {
 			log.error("Exception responding to participant ({})", participantPrivateId, e);
 		}
@@ -109,6 +117,14 @@ public class RpcNotificationService {
 
 		try {
 			s.sendNotification(method, params);
+		} catch (KurentoException e) {
+			if (e.getCause() instanceof IllegalStateException) {
+				log.warn("Notification '{}' couldn't be sent to participant with privateId {}: {}", method,
+						participantPrivateId, e.getCause().getMessage());
+			} else {
+				log.error("Exception sending notification '{}': {} to participant with private id {}", method, params,
+						participantPrivateId, e);
+			}
 		} catch (Exception e) {
 			log.error("Exception sending notification '{}': {} to participant with private id {}", method, params,
 					participantPrivateId, e);

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import { Session } from '../../OpenVidu/Session';
 
 
 /**
- * Defines the following events:
- * - `recordingStarted`: dispatched by [[Session]] after the session has started being recorded
- * - `recordingStopped`: dispatched by [[Session]] after the session has stopped being recorded
+ * Triggered by:
+ * - [[recordingStarted]]
+ * - [[recordingStopped]]
  */
 export class RecordingEvent extends Event {
 

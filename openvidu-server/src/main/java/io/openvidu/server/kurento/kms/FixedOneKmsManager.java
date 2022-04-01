@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ import io.openvidu.server.core.SessionManager;
 
 public class FixedOneKmsManager extends KmsManager {
 
-	public FixedOneKmsManager(SessionManager sessionManager) {
-		super(sessionManager);
+	public FixedOneKmsManager(SessionManager sessionManager, LoadManager loadManager) {
+		super(sessionManager, loadManager);
 	}
 
 	@Override
@@ -44,19 +44,24 @@ public class FixedOneKmsManager extends KmsManager {
 			throws Exception {
 		KmsProperties firstProps = kmsProperties.get(0);
 		KurentoClient kClient = null;
-		Kms kms = new Kms(firstProps, loadManager, quarantineKiller);
+		Kms kms = new Kms(firstProps, loadManager, this);
 		try {
 			JsonRpcWSConnectionListener listener = this.generateKurentoConnectionListener(kms.getId());
 			JsonRpcClientNettyWebSocket client = new JsonRpcClientNettyWebSocket(firstProps.getUri(), listener);
 			client.setTryReconnectingMaxTime(0);
 			client.setTryReconnectingForever(false);
-			kClient = KurentoClient.createFromJsonRpcClient(client);
-			this.addKms(kms);
+			client.setConnectionTimeout(MAX_CONNECT_TIME_MILLIS);
+			client.setRequestTimeout(MAX_REQUEST_TIMEOUT);
+			kClient = KurentoClient.createFromJsonRpcClientHonoringClientTimeouts(client);
 			kms.setKurentoClient(kClient);
 
 			// TODO: This should be done in KurentoClient connected event
-			kms.setKurentoClientConnected(true);
-			kms.setTimeOfKurentoClientConnection(System.currentTimeMillis());
+			kms.setKurentoClientConnected(true, false);
+
+			this.addKms(kms);
+
+			// Set Media Server in OpenVidu configuration
+			this.openviduConfig.setMediaServer(kms.getMediaServerType());
 
 		} catch (KurentoException e) {
 			log.error("KMS in {} is not reachable by OpenVidu Server", firstProps.getUri());
@@ -87,7 +92,12 @@ public class FixedOneKmsManager extends KmsManager {
 	}
 
 	@Override
-	protected void removeMediaNodeUponCrash(String mediaNodeId) {
+	public void removeMediaNodeUponCrash(String mediaNodeId) {
+	}
+
+	@Override
+	protected String getEnvironmentId(String mediaNodeId) {
+		return null;
 	}
 
 	@Override
@@ -103,7 +113,7 @@ public class FixedOneKmsManager extends KmsManager {
 		} catch (Exception e) {
 			// Some KMS wasn't reachable
 			log.error("Shutting down OpenVidu Server");
-			System.exit(1);
+			Runtime.getRuntime().halt(1);
 		}
 	}
 

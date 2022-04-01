@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,8 @@ public class FinalUser {
 	public JsonObject toJson() {
 		JsonObject json = new JsonObject();
 		json.addProperty("id", id);
-		json.addProperty("location", this.location != null ? this.location.toString() : "unknown");
+		json.addProperty("location", this.location.toString());
+		json.addProperty("ip", this.location.getIp());
 		json.addProperty("platform", platform);
 
 		JsonObject connectionsJson = new JsonObject();

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,6 @@ public class ComposedRecordingService extends RecordingService {
 
 	private static final Logger log = LoggerFactory.getLogger(ComposedRecordingService.class);
 
-	protected Map<String, String> containers = new ConcurrentHashMap<>();
 	protected Map<String, String> sessionsContainers = new ConcurrentHashMap<>();
 	private Map<String, CompositeWrapper> composites = new ConcurrentHashMap<>();
 
@@ -164,8 +163,9 @@ public class ComposedRecordingService extends RecordingService {
 
 		String containerId;
 		try {
-			final String container = RecordingManager.IMAGE_NAME + ":" + openviduConfig.getOpenViduRecordingVersion();
-			final String containerName = "recording_" + recording.getId();
+			final String container = openviduConfig.getOpenviduRecordingImageRepo() + ":"
+					+ openviduConfig.getOpenViduRecordingVersion();
+			final String containerName = "recording_" + recording.getId().replace("~", "_");
 			Volume volume1 = new Volume("/recordings");
 			List<Volume> volumes = new ArrayList<>();
 			volumes.add(volume1);
@@ -173,8 +173,8 @@ public class ComposedRecordingService extends RecordingService {
 			List<Bind> binds = new ArrayList<>();
 			binds.add(bind1);
 			containerId = dockerManager.runContainer(properties.mediaNode(), container, containerName, null, volumes,
-					binds, "host", envs, null, properties.shmSize(), false, null);
-			containers.put(containerId, containerName);
+					binds, "host", envs, null, properties.shmSize(), false, null,
+					openviduConfig.isOpenviduRecordingGPUEnabled());
 		} catch (Exception e) {
 			this.cleanRecordingMaps(recording);
 			throw this.failStartRecording(session, recording,
@@ -271,7 +271,6 @@ public class ComposedRecordingService extends RecordingService {
 									session.getSessionId());
 							dockerManager.removeContainer(recordingAux.getRecordingProperties().mediaNode(),
 									containerIdAux, true);
-							containers.remove(containerId);
 							containerClosed = true;
 							log.warn("Container {} for closed session {} succesfully stopped and removed",
 									containerIdAux, session.getSessionId());
@@ -404,7 +403,6 @@ public class ComposedRecordingService extends RecordingService {
 
 		// Remove container
 		dockerManager.removeContainer(recording.getRecordingProperties().mediaNode(), containerId, false);
-		containers.remove(containerId);
 	}
 
 	protected void updateRecordingAttributes(Recording recording) {
@@ -444,7 +442,6 @@ public class ComposedRecordingService extends RecordingService {
 		recording.setStatus(io.openvidu.java.client.Recording.Status.failed);
 		if (removeContainer) {
 			dockerManager.removeContainer(recording.getRecordingProperties().mediaNode(), containerId, true);
-			containers.remove(containerId);
 		}
 		sealRecordingMetadataFileAsReady(recording, recording.getSize(), recording.getDuration(),
 				getMetadataFilePath(recording));

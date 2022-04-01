@@ -6,7 +6,7 @@ import {
 import {
   OpenVidu, Session, Subscriber, Publisher, Event, StreamEvent, ConnectionEvent,
   SessionDisconnectedEvent, SignalEvent, RecordingEvent,
-  PublisherSpeakingEvent, PublisherProperties, StreamPropertyChangedEvent, ConnectionPropertyChangedEvent, OpenViduError, NetworkQualityLevelChangedEvent, ExceptionEvent
+  PublisherSpeakingEvent, PublisherProperties, StreamPropertyChangedEvent, ConnectionPropertyChangedEvent, OpenViduError, NetworkQualityLevelChangedEvent, ExceptionEvent, OpenViduAdvancedConfiguration
 } from 'openvidu-browser';
 import {
   OpenVidu as OpenViduAPI,
@@ -121,7 +121,8 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
     resolution: '640x480',
     mirror: true,
     publishAudio: true,
-    publishVideo: true
+    publishVideo: true,
+    videoSimulcast: false
   };
 
   publisherPropertiesAux: PublisherProperties;
@@ -149,7 +150,8 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
   turnConf = 'auto';
   manualTurnConf: RTCIceServer = { urls: [] };
   customToken: string;
-  forcePublishing: boolean;
+  forcePublishing: boolean = false;
+  reconnectionOnServerFailure: boolean = false;
   connectionProperties: ConnectionProperties = {
     role: OpenViduRole.PUBLISHER,
     record: true,
@@ -229,11 +231,13 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
 
     this.OV = new OpenVidu();
 
+    const advancedConfiguration: OpenViduAdvancedConfiguration = {};
     if (this.turnConf === 'freeice') {
-      this.OV.setAdvancedConfiguration({ iceServers: 'freeice' });
+      advancedConfiguration.iceServers = 'freeice';
     } else if (this.turnConf === 'manual') {
-      this.OV.setAdvancedConfiguration({ iceServers: [this.manualTurnConf] });
+      advancedConfiguration.iceServers = [this.manualTurnConf];
     }
+    this.OV.setAdvancedConfiguration(advancedConfiguration);
 
     this.session = this.OV.initSession();
 
@@ -292,7 +296,7 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
   updateEventList(eventName: string, eventContent: string, event: Event) {
     const eventInterface: OpenViduEvent = { eventName, eventContent, event };
     this.events.push(eventInterface);
-    this.testFeedService.pushNewEvent(this.sessionName, this.session.connection.connectionId, event);
+    this.testFeedService.pushNewEvent(event);
   }
 
   toggleSubscribeTo(): void {
@@ -444,12 +448,20 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
     if (this.sessionEvents.sessionDisconnected !== oldValues.sessionDisconnected || firstTime) {
       this.session.off('sessionDisconnected');
       if (this.sessionEvents.sessionDisconnected) {
-        this.session.on('sessionDisconnected', (event: SessionDisconnectedEvent) => {
+        this.session.on('sessionDisconnected', async (event: SessionDisconnectedEvent) => {
           this.updateEventList('sessionDisconnected', '', event);
           this.subscribers = [];
           delete this.publisher;
           delete this.session;
           delete this.OV;
+
+          if (event.reason === 'nodeCrashed' && this.reconnectionOnServerFailure) {
+            console.warn('Reconnecting after node crash');
+            await this.initializeNodeClient((event.target as Session).sessionId);
+            const connection: Connection = await this.createConnection();
+            this.joinSessionShared(connection.token);
+          }
+
         });
       }
     }
@@ -507,7 +519,7 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
       this.session.off('reconnecting');
       if (this.sessionEvents.reconnecting) {
         this.session.on('reconnecting', () => {
-          this.updateEventList('reconnecting', '', undefined);
+          this.updateEventList('reconnecting', '', { cancelable: false, target: this.session, type: 'reconnecting', hasBeenPrevented: false, isDefaultPrevented: undefined, preventDefault: undefined, callDefaultBehavior: undefined });
         });
       }
     }
@@ -516,7 +528,7 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
       this.session.off('reconnected');
       if (this.sessionEvents.reconnected) {
         this.session.on('reconnected', () => {
-          this.updateEventList('reconnected', '', undefined);
+          this.updateEventList('reconnected', '', { cancelable: false, target: this.session, type: 'reconnected', hasBeenPrevented: false, isDefaultPrevented: undefined, preventDefault: undefined, callDefaultBehavior: undefined });
         });
       }
     }
@@ -630,6 +642,7 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
         manualTurnConf: this.manualTurnConf,
         customToken: this.customToken,
         forcePublishing: this.forcePublishing,
+        reconnectionOnServerFailure: this.reconnectionOnServerFailure,
         connectionProperties: this.connectionProperties,
       }
     });
@@ -644,6 +657,7 @@ export class OpenviduInstanceComponent implements OnInit, OnChanges, OnDestroy {
         this.manualTurnConf = result.manualTurnConf;
         this.customToken = result.customToken;
         this.forcePublishing = result.forcePublishing;
+        this.reconnectionOnServerFailure = result.reconnectionOnServerFailure;
         this.connectionProperties = result.connectionProperties;
       }
       document.getElementById('session-settings-btn-' + this.index).classList.remove('cdk-program-focused');

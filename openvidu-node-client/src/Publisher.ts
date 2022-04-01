@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017-2020 OpenVidu (https://openvidu.io)
+ * (C) Copyright 2017-2022 OpenVidu (https://openvidu.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,14 @@
 /**
  * See [[Connection.publishers]]
  *
- * This is a backend representation of a published media stream (see [OpenVidu Browser Stream class](/en/stable/api/openvidu-browser/classes/stream.html))
+ * This is a backend representation of a published media stream (see [OpenVidu Browser Stream class](/en/stable/api/openvidu-browser/classes/Stream.html))
  */
 export class Publisher {
 
     /**
-     * Unique identifier of the [Stream](/en/stable/api/openvidu-browser/classes/stream.html) associated to this Publisher.
+     * Unique identifier of the [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) associated to this Publisher.
      * Each Publisher is paired with only one Stream, so you can identify each Publisher by its
-     * [`Stream.streamId`](/en/stable/api/openvidu-browser/classes/stream.html#streamid)
+     * [`Stream.streamId`](/en/stable/api/openvidu-browser/classes/Stream.html#streamId)
      */
     streamId: string;
 
@@ -36,37 +36,37 @@ export class Publisher {
     createdAt: number;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     hasAudio: boolean;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     hasVideo: boolean;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     audioActive: boolean;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     videoActive: boolean;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     frameRate: number;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     typeOfVideo: string;
 
     /**
-     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/stream.html) object in OpenVidu Browser library to find out more
+     * See properties of [Stream](/en/stable/api/openvidu-browser/classes/Stream.html) object in OpenVidu Browser library to find out more
      */
     videoDimensions: string;
 
